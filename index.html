@@ -903,6 +903,15 @@ function renderSummary(student, evs){
 
   const pills = [];
   pills.push(`<span class="pill">Niveau: ${csvEscape(student?.level || "")}</span>`);
+  if (student?.competence_required){
+  pills.push(`<span class="pill" style="background:#fff0f0;border-color:#ffb3b3;">
+    Competence kræves
+  </span>`);
+} else {
+  pills.push(`<span class="pill">
+    Ingen competence påkrævet
+  </span>`);
+}
   pills.push(`<span class="pill">Beskrivelser: ${total}</span>`);
   pills.push(`<span class="pill">3+4: ${pct}%</span>`);
   html("summaryPills", pills.join(""));
@@ -1297,3 +1306,4 @@ boot();
 </script>
 </body>
 </html>
+
