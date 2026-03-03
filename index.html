@@ -64,7 +64,7 @@ canvas{
 
 <body>
   <h1>Neuroradiologi – Online Evaluering</h1>
-  <p class="small muted">Kør via Live Server på <b>http://localhost:5500</b>. Data gemmes i Supabase.</p>
+  <p class="small muted">Online version. Data gemmes i Supabase.</p>
 
   <!-- LOGIN -->
   <div class="card" id="loginCard">
@@ -483,7 +483,7 @@ const supabaseClient = supabase.createClient(
   SUPABASE_ANON_KEY,
   {
     global: { fetch: authedFetch },
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   }
 );
 
@@ -551,13 +551,18 @@ async function login(){
     return msg("loginMsg", json?.error_description || json?.message || "Login failed", "error");
   }
 
-  ACCESS_TOKEN = json.access_token;
-  REFRESH_TOKEN = json.refresh_token;
-  currentUser = json.user || null;
+ ACCESS_TOKEN = json.access_token;
+REFRESH_TOKEN = json.refresh_token;
+currentUser = json.user || null;
 
-  await loadUserRole();
-  updateUIByRole();
-  await refreshStudentsIntoSelects();
+await supabaseClient.auth.setSession({
+  access_token: ACCESS_TOKEN,
+  refresh_token: REFRESH_TOKEN
+});
+
+await loadUserRole();
+updateUIByRole();
+await refreshStudentsIntoSelects();
 
   msg("loginMsg","Login OK","ok");
 }
