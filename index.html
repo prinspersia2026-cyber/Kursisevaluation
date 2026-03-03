@@ -349,6 +349,9 @@ canvas{
       <!-- IMPORT -->
       <div class="card" id="importCard" style="display:none;margin-top:12px">
         <h3>Import data</h3>
+<button type="button" class="btn-secondary" id="btnExportJSON">
+  Download Full Backup (JSON)
+</button>
         <p class="small muted">Vælg <b>nr_backup_localstorage.json</b> og importer til Supabase.</p>
         <div class="row">
           <input type="file" id="jsonFile" accept="application/json" />
@@ -1220,6 +1223,44 @@ async function showResults(){
   }
 }
 
+async function exportJSONBackup(){
+  try{
+    if (!canImport()) {
+      alert("Ingen adgang.");
+      return;
+    }
+
+    const [students, evals] = await Promise.all([
+      dbGetStudents(),
+      supabaseClient.from("evaluations").select("*")
+        .then(r => {
+          if (r.error) throw r.error;
+          return r.data || [];
+        })
+    ]);
+
+    const payload = {
+      students,
+      evals
+    };
+
+    const blob = new Blob(
+      [JSON.stringify(payload, null, 2)],
+      { type: "application/json" }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "nr_backup_full.json";
+    a.click();
+    URL.revokeObjectURL(url);
+
+  } catch(e){
+    alert(e.message || String(e));
+  }
+}
+
 /* =========================
    WIRE + BOOT
 ========================= */
@@ -1246,8 +1287,9 @@ function boot(){
   $("btnShowResults").addEventListener("click", showResults);
   $("btnShowTopic").addEventListener("click", () => renderTopic(lastStudentName));
 
-  $("btnImportJSON").addEventListener("click", importJSONToSupabase);
-  $("btnCSV").addEventListener("click", downloadCSV);
+ $("btnImportJSON").addEventListener("click", importJSONToSupabase);
+$("btnExportJSON").addEventListener("click", exportJSONBackup);
+$("btnCSV").addEventListener("click", downloadCSV);
 
   $("btnCSV").disabled = true;
 }
