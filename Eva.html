@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Neuroradiologi – Online Evaluering</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:1200px;margin:18px auto;padding:12px;line-height:1.45}
+    h1{margin:0 0 10px;font-size:22px}
+    h2{margin:0 0 8px;font-size:18px}
+    h3{margin:0 0 8px;font-size:15px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    label{font-size:12px;color:#555}
+    input,select,button{padding:8px 10px;border:1px solid #bbb;border-radius:10px;font-size:14px}
+    button{cursor:pointer}
+    .small{font-size:12px;color:#666;margin-top:6px}
+    .error{color:#b00020;font-size:13px}
+    .ok{color:#0a7a0a;font-size:13px}
+    hr{border:none;border-top:1px solid #eee;margin:12px 0}
+    .pill{display:inline-block;padding:2px 10px;border:1px solid #ddd;border-radius:999px;font-size:12px;margin:4px 6px 0 0;background:#fff}
+    .pill.ok{border-color:#8bd98b;background:#f2fff2}
+    .pill.warn{border-color:#ffd27a;background:#fff8e8}
+    .pill.bad{border-color:#ff9aa0;background:#fff0f0}
+
+    .chart-card{border:1px solid #ddd;border-radius:12px;padding:10px}
+    .chart-title{font-weight:650;margin:0 0 8px;font-size:13px}
+    .chart-card{
+  border:1px solid #ddd;
+  border-radius:12px;
+  padding:10px;
+  position:relative;
+  height:320px;          /* ارتفاع ثابت اینجاست */
+}
+canvas{
+  width:100% !important;
+  height:100% !important; /* canvas فقط پرکننده‌ی کانتینره */
+}
+
+    table{border-collapse:collapse;width:100%}
+    th,td{border-bottom:1px solid #eee;padding:6px 8px;font-size:12px;text-align:left;vertical-align:top}
+    th{font-weight:650;background:#fafafa}
+
+    .chkgroup{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .chk{display:flex;gap:6px;align-items:center;border:1px solid #ddd;border-radius:999px;padding:4px 10px;background:#fff}
+    .chk input{accent-color:#111}
+
+    .btn-primary{background:#111;color:#fff;border-color:#111}
+    .btn-secondary{background:#fafafa}
+    .btn-danger{background:#fff0f0;border-color:#ffb3b3}
+    .muted{color:#777}
+
+    .callout{border-radius:12px;padding:12px;border:1px solid #ddd}
+    .callout.ok{background:#f2fff2;border-color:#8bd98b}
+    .callout.warn{background:#fff8e8;border-color:#ffd27a}
+    .callout.bad{background:#fff0f0;border-color:#ff9aa0}
+    .callout-title{font-weight:750;margin-bottom:6px}
+  </style>
+</head>
+
+<body>
+  <h1>Neuroradiologi – Online Evaluering</h1>
+  <p class="small muted">Kør via Live Server på <b>http://localhost:5500</b>. Data gemmes i Supabase.</p>
+
+  <!-- LOGIN -->
+  <div class="card" id="loginCard">
+    <h2>Login</h2>
+    <div class="row">
+      <div>
+        <label>Email</label><br/>
+        <input type="email" id="loginEmail" autocomplete="username" />
+      </div>
+      <div>
+        <label>Password</label><br/>
+        <input type="password" id="loginPassword" autocomplete="current-password" />
+      </div>
+      <div>
+        <button type="button" class="btn-primary" id="btnLogin">Login</button>
+      </div>
+    </div>
+    <p id="loginMsg" class="small"></p>
+  </div>
+
+  <!-- APP -->
+  <div id="app" style="display:none">
+
+    <div class="card">
+      <div class="row">
+        <span class="pill" id="whoAmI"></span>
+        <button type="button" class="btn-secondary" id="btnLogout">Logout</button>
+      </div>
+      <p class="small muted" id="roleNote"></p>
+    </div>
+
+    <!-- CHANGE PASSWORD -->
+    <div class="card" id="pwCard">
+      <h2>Change password</h2>
+      <div class="row">
+        <div>
+          <label>New password</label><br/>
+          <input type="password" id="newPassword" autocomplete="new-password" />
+        </div>
+        <div>
+          <button type="button" class="btn-primary" id="btnChangePassword">Change</button>
+        </div>
+      </div>
+      <p id="pwMsg" class="small"></p>
+    </div>
+
+    <!-- STUDENTS -->
+    <div class="card" id="studentsCard">
+      <h2>Studerende</h2>
+      <div class="row">
+        <div>
+          <label>Navn</label><br/>
+          <input id="stName" type="text" placeholder="Studerende navn" />
+        </div>
+        <div>
+          <label>Startdato</label><br/>
+          <input id="stStart" type="date" />
+        </div>
+        <div>
+          <label>Forventet slutdato</label><br/>
+          <input id="stEnd" type="date" />
+        </div>
+        <div>
+          <label>Erfaringsniveau</label><br/>
+          <select id="stLevel">
+            <option value="Intro">Intro</option>
+            <option value="HU1">HU1</option>
+            <option value="HU2">HU2</option>
+            <option value="HU3">HU3</option>
+            <option value="HU4">HU4</option>
+          </select>
+        </div>
+        <div>
+          <label>Competence kræves</label><br/>
+          <label class="chk"><input id="stComp" type="checkbox"/><span>Ja</span></label>
+        </div>
+        <div>
+          <button type="button" class="btn-primary" id="btnSaveStudent">Gem</button>
+        </div>
+        <div>
+          <button type="button" class="btn-danger" id="btnDeleteStudent">Slet (valgt)</button>
+        </div>
+      </div>
+
+      <p id="stMsg" class="small"></p>
+
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label>Studerende (til evaluering/resultat)</label><br/>
+          <select id="studentSelect"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- EVALUATION -->
+    <div class="card" id="evaluationCard">
+      <h2>Evaluering</h2>
+
+      <div class="row">
+        <div>
+          <label>Type</label><br/>
+          <select id="evalType">
+            <option value="beskrivelse">Beskrivelse</option>
+            <option value="visitation">Visitation</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- VISITATION -->
+      <div class="card" id="visCard" style="display:none">
+        <h3>Visitation</h3>
+        <div class="row">
+          <div>
+            <label>Resultat</label><br/>
+            <select id="visRes">
+              <option value="enig">enig</option>
+              <option value="uenig">uenig</option>
+              <option value="manglende omhu">Manglende omhu</option>
+            </select>
+          </div>
+          <div>
+            <label>Dato</label><br/>
+            <input id="visDate" type="date" />
+          </div>
+          <div>
+            <button type="button" class="btn-primary" id="btnAddVis">Tilføj</button>
+          </div>
+        </div>
+        <p id="visMsg" class="small"></p>
+      </div>
+
+      <!-- BESKRIVELSE -->
+      <div class="card" id="besCard">
+        <h3>Beskrivelse</h3>
+
+        <div class="row">
+          <div>
+            <label>Modality</label><br/>
+            <select id="modality">
+              <option value="CT">CT</option>
+              <option value="MR">MR</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Anatomi (kan være begge)</label><br/>
+            <div class="chkgroup">
+              <label class="chk"><input type="checkbox" id="anCere"/><span>Cerebrum</span></label>
+              <label class="chk"><input type="checkbox" id="anCol"/><span>Columna</span></label>
+            </div>
+          </div>
+
+          <div>
+            <label>Beskrivelsesdato</label><br/>
+            <input id="bDate" type="date" />
+          </div>
+
+          <div>
+            <label>Supervisionsdato</label><br/>
+            <input id="sDate" type="date" />
+          </div>
+
+          <div>
+            <button type="button" class="btn-secondary" id="btnSameDate">Samme dato</button>
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <label>Emner (kan være flere)</label>
+          <div class="chkgroup" id="topicsBox"></div>
+        </div>
+
+        <div style="margin-top:10px" class="row">
+          <div>
+            <label>Klinisk betydning (1 → 4)</label><br/>
+            <select id="scale">
+              <option value="1">1 - Sandsynlig klinisk betydning</option>
+              <option value="2">2 - Mulig klinisk betydning</option>
+              <option value="3">3 - Ikke klinisk betydning</option>
+              <option value="4">4 - Helt enig</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Fejltype (valgfri, kan være flere)</label><br/>
+            <div class="chkgroup" id="errorsBox"></div>
+          </div>
+
+          <div>
+            <button type="button" class="btn-primary" id="btnAddBes">Tilføj</button>
+          </div>
+        </div>
+
+        <p id="besMsg" class="small"></p>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="card" id="resultsCard">
+      <h2>Resultater</h2>
+      <div class="row">
+        <div>
+          <label>Studerende</label><br/>
+          <select id="studentSelectResults"></select>
+        </div>
+        <div>
+          <button type="button" id="btnShowResults">Vis resultater</button>
+        </div>
+        <div>
+          <button type="button" id="btnCSV" disabled>Download CSV</button>
+        </div>
+      </div>
+
+      <p id="resMsg" class="small"></p>
+
+      <div id="summaryPills"></div>
+
+      <!-- FINAL EVALUATION -->
+      <div class="card" id="finalCard" style="display:none">
+        <div id="finalBox" class="callout">
+          <div class="callout-title">Endelig vurdering</div>
+          <div id="finalText" class="small"></div>
+        </div>
+      </div>
+
+      <!-- STATISTICS -->
+      <div class="card" id="statsCard" style="display:none">
+        <h3>Statistik</h3>
+
+        <div class="row">
+          <div style="flex:1;min-width:280px">
+            <h3 class="muted" style="margin:6px 0">Modality (antal)</h3>
+            <table>
+              <thead><tr><th>Modality</th><th>Antal</th></tr></thead>
+              <tbody id="tblModality"></tbody>
+            </table>
+          </div>
+
+          <div style="flex:1;min-width:280px">
+            <h3 class="muted" style="margin:6px 0">Anatomi (antal)</h3>
+            <table>
+              <thead><tr><th>Anatomi</th><th>Antal</th></tr></thead>
+              <tbody id="tblAnatomy"></tbody>
+            </table>
+          </div>
+
+          <div style="flex:1;min-width:280px">
+            <h3 class="muted" style="margin:6px 0">Fejltyper (antal)</h3>
+            <table>
+              <thead><tr><th>Fejl</th><th>Antal</th></tr></thead>
+              <tbody id="tblErrors"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <h3 class="muted" style="margin:6px 0">Modality × Anatomi</h3>
+          <table>
+            <thead><tr><th></th><th>cerebrum</th><th>columna</th></tr></thead>
+            <tbody id="tblModAnat"></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:10px">
+          <h3 class="muted" style="margin:6px 0">Emne-status (krav + % 3+4)</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Emne</th>
+                <th>Antal</th>
+                <th>Krav</th>
+                <th>3+4 (%)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tblTopicStatus"></tbody>
+          </table>
+          <p class="small muted">Grøn = opfyldt, Gul = tæt på (≤10% fra krav), Rød = ikke opfyldt.</p>
+        </div>
+      </div>
+
+      <!-- IMPORT -->
+      <div class="card" id="importCard" style="display:none;margin-top:12px">
+        <h3>Import data</h3>
+        <p class="small muted">Vælg <b>nr_backup_localstorage.json</b> og importer til Supabase.</p>
+        <div class="row">
+          <input type="file" id="jsonFile" accept="application/json" />
+          <button type="button" class="btn-primary" id="btnImportJSON">Import JSON → Supabase</button>
+        </div>
+        <p id="importMsg" class="small"></p>
+      </div>
+
+      <hr/>
+
+      <div class="card" id="overallCard" style="display:none">
+        <h3>Progress – Neuroradiologi (samlet)</h3>
+        <div class="chart-card">
+          <div class="chart-title" id="overallTitle"></div>
+          <canvas id="overallChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card" id="topicCard" style="display:none">
+        <h3>Progress pr. emne</h3>
+        <div class="row">
+          <div>
+            <label>Emne</label><br/>
+            <select id="topicSelect"></select>
+          </div>
+          <div>
+            <button type="button" id="btnShowTopic">Vis</button>
+          </div>
+        </div>
+        <div class="chart-card" style="margin-top:10px">
+          <div class="chart-title" id="topicTitle"></div>
+          <canvas id="topicChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Data (seneste 200)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th><th>Dato</th><th>Modality</th><th>Anatomi</th><th>Emner</th><th>Skala</th><th>Visitation</th><th>Fejl</th>
+            </tr>
+          </thead>
+          <tbody id="dataBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+/* =========================
+   CONFIG
+========================= */
+const SUPABASE_URL = "https://fnqhiudpvdjofkwimhev.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_CDgzASZK9LnwazDf5EFxLA_EL1ciVMj";
+
+/* =========================
+   CONSTANTS
+========================= */
+Chart.defaults.animation = false;
+
+const TOPICS = [
+  "Vaskulære",
+  "Vaskulære angiografi",
+  "Traume/Traumefølge",
+  "Hydrocefalus",
+  "Demyeliniserende sygdom",
+  "Neurodegenerativ",
+  "Infektiøs & inflamatorisk",
+  "Kongenit/normal variant",
+  "Øvrige"
+];
+
+const TOPIC_REQUIREMENTS = {
+  "Vaskulære": 50,
+  "Vaskulære angiografi": 50,
+  "Traume/Traumefølge": 50,
+  "Hydrocefalus": 10,
+  "Demyeliniserende sygdom": 15,
+  "Neurodegenerativ": 15,
+  "Infektiøs & inflamatorisk": 5,
+  "Kongenit/normal variant": 5,
+  "Øvrige": 0
+};
+
+const ERROR_TYPES = [
+  "overseelse",
+  "fejltolkning",
+  "manglende samvittighedsfuldhed"
+];
+
+const PASS_THRESHOLDS = { Intro: 70, HU1: 80, HU2: 80, HU3: 90, HU4: 90 };
+const NEAR_MARGIN = 10; // "tæt på" = <=10% under kravet
+
+/* =========================
+   HELPERS
+========================= */
+const $ = (id) => document.getElementById(id);
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function msg(id, text, cls="small"){ const el=$(id); if(!el) return; el.className=cls; el.textContent=text||""; }
+function html(id, v){ const el=$(id); if(!el) return; el.innerHTML = v || ""; }
+function show(el, yes){ if (!el) return; el.style.display = yes ? "" : "none"; }
+function csvEscape(v){ if(v==null) return ""; v=String(v).replace(/"/g,'""'); return /[",\r\n]/.test(v) ? `"${v}"` : v; }
+
+function checkedValues(cls){
+  return Array.from(document.querySelectorAll(`.${cls}:checked`)).map(x => x.value);
+}
+function toDateKey(d){ return String(d || "").slice(0,10); }
+
+/* =========================
+   CLEAN FETCH + TOKENS
+========================= */
+const iframe = document.createElement("iframe");
+iframe.style.display = "none";
+document.body.appendChild(iframe);
+const cleanFetch = iframe.contentWindow.fetch.bind(iframe.contentWindow);
+
+let ACCESS_TOKEN = null;
+let REFRESH_TOKEN = null;
+
+/* authed fetch for PostgREST */
+function authedFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("apikey", SUPABASE_ANON_KEY);
+  if (ACCESS_TOKEN) headers.set("Authorization", "Bearer " + ACCESS_TOKEN);
+  return cleanFetch(url, { ...options, headers });
+}
+
+const supabaseClient = supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  {
+    global: { fetch: authedFetch },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  }
+);
+
+/* =========================
+   AUTH + ROLES
+========================= */
+let currentUser = null;
+let currentRole = null;
+
+function canManageStudents(){ return ["admin","administrative"].includes(currentRole); }
+function canInsertEval(){ return ["admin","administrative","evaluator"].includes(currentRole); }
+function canSeeResults(){ return ["admin","administrative","evaluator","observer"].includes(currentRole); }
+function canImport(){ return ["admin","administrative"].includes(currentRole); }
+
+async function loadUserRole(){
+  currentRole = null;
+  if (!currentUser?.id) return;
+
+  const { data, error } = await supabaseClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", currentUser.id)
+    .single();
+
+  if (!error && data?.role) currentRole = data.role;
+}
+
+function updateUIByRole(){
+  const loggedIn = !!currentUser;
+
+  show($("loginCard"), !loggedIn);
+  show($("app"), loggedIn);
+
+  if (!loggedIn) return;
+
+  $("whoAmI").textContent = `${currentUser.email} · ${currentRole || "(no role)"}`;
+  $("roleNote").textContent =
+    `Role: ${currentRole || "(no role)"} · ` +
+    `Students: ${canManageStudents() ? "YES" : "NO"} · ` +
+    `Insert eval: ${canInsertEval() ? "YES" : "NO"} · ` +
+    `Results: ${canSeeResults() ? "YES" : "NO"}`;
+
+  show($("studentsCard"), canManageStudents());
+  show($("evaluationCard"), canInsertEval());
+  show($("resultsCard"), canSeeResults());
+  show($("importCard"), canImport());
+}
+
+/* manual login */
+async function login(){
+  msg("loginMsg","");
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+  if (!email || !password) return msg("loginMsg","Udfyld email + password.","error");
+
+  const url = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+  const res = await cleanFetch(url, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok){
+    return msg("loginMsg", json?.error_description || json?.message || "Login failed", "error");
+  }
+
+  ACCESS_TOKEN = json.access_token;
+  REFRESH_TOKEN = json.refresh_token;
+  currentUser = json.user || null;
+
+  await loadUserRole();
+  updateUIByRole();
+  await refreshStudentsIntoSelects();
+
+  msg("loginMsg","Login OK","ok");
+}
+
+function logout(){
+  ACCESS_TOKEN = null;
+  REFRESH_TOKEN = null;
+  currentUser = null;
+  currentRole = null;
+
+  $("loginPassword").value = "";
+  updateUIByRole();
+
+  msg("stMsg",""); msg("besMsg",""); msg("visMsg",""); msg("resMsg",""); msg("importMsg","");
+  html("summaryPills",""); html("dataBody","");
+  hideCharts();
+  show($("finalCard"), false);
+  show($("statsCard"), false);
+}
+
+/* change password (Method B) */
+async function changePassword(){
+  msg("pwMsg","");
+  const newPassword = $("newPassword").value;
+  if (!newPassword || newPassword.length < 6){
+    return msg("pwMsg","Password must be at least 6 characters.","error");
+  }
+  if (!ACCESS_TOKEN){
+    return msg("pwMsg","Not logged in.","error");
+  }
+
+  const res = await cleanFetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": "Bearer " + ACCESS_TOKEN,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ password: newPassword })
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok){
+    return msg("pwMsg", json?.error_description || json?.message || "Failed to change password", "error");
+  }
+
+  $("newPassword").value = "";
+  msg("pwMsg","Password changed ✅","ok");
+}
+
+/* =========================
+   DB HELPERS
+========================= */
+async function dbGetStudents(){
+  const { data, error } = await supabaseClient.from("students").select("*").order("name", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+async function dbUpsertStudent(payloadArr){
+  const { error } = await supabaseClient.from("students").upsert(payloadArr, { onConflict: "id" });
+  if (error) throw error;
+}
+async function dbInsertStudent(payload){
+  const { data, error } = await supabaseClient.from("students").insert(payload).select("*").single();
+  if (error) throw error;
+  return data;
+}
+async function dbDeleteStudent(studentId){
+  const { error } = await supabaseClient.from("students").delete().eq("id", studentId);
+  if (error) throw error;
+}
+async function dbInsertEval(payloadArr){
+  const { error } = await supabaseClient.from("evaluations").insert(payloadArr);
+  if (error) throw error;
+}
+async function dbGetEvals(studentId){
+  const { data, error } = await supabaseClient
+    .from("evaluations")
+    .select("*")
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+/* =========================
+   UI INIT
+========================= */
+function buildCheckboxes(){
+  $("topicsBox").innerHTML = TOPICS.map(t =>
+    `<label class="chk"><input type="checkbox" class="topicChk" value="${t}"/><span>${t}</span></label>`
+  ).join("");
+
+  $("errorsBox").innerHTML = ERROR_TYPES.map(t =>
+    `<label class="chk"><input type="checkbox" class="errChk" value="${t}"/><span>${t}</span></label>`
+  ).join("");
+
+  $("visDate").value = todayISO();
+  $("bDate").value = todayISO();
+  $("sDate").value = "";
+}
+
+function setEvalUI(){
+  const t = $("evalType").value;
+  show($("besCard"), t === "beskrivelse");
+  show($("visCard"), t === "visitation");
+}
+
+async function refreshStudentsIntoSelects(){
+  if (!canSeeResults() && !canInsertEval() && !canManageStudents()) return;
+  const students = await dbGetStudents();
+  const opts = students.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+  $("studentSelect").innerHTML = opts;
+  $("studentSelectResults").innerHTML = opts;
+}
+
+/* =========================
+   STUDENT ACTIONS
+========================= */
+async function saveStudent(){
+  msg("stMsg","");
+  try{
+    const name = $("stName").value.trim();
+    if (!name) return msg("stMsg","Udfyld navn.","error");
+
+    const start_date = $("stStart").value || null;
+    const expected_end_date = $("stEnd").value || null;
+    const level = $("stLevel").value || "Intro";
+    const competence_required = $("stComp").checked;
+
+    const students = await dbGetStudents();
+    const ex = students.find(s => s.name === name);
+
+    if (ex){
+      await dbUpsertStudent([{
+        id: ex.id, name, start_date, expected_end_date, level, competence_required
+      }]);
+    } else {
+      await dbInsertStudent({ name, start_date, expected_end_date, level, competence_required });
+    }
+
+    msg("stMsg","Studerende gemt.","ok");
+    await refreshStudentsIntoSelects();
+  } catch(e){
+    msg("stMsg", e.message || String(e), "error");
+  }
+}
+
+async function deleteSelectedStudent(){
+  msg("stMsg","");
+  try{
+    const studentId = $("studentSelect").value;
+    if (!studentId) return msg("stMsg","Vælg en studerende.","error");
+    if (!confirm("Slet valgt studerende?")) return;
+
+    await dbDeleteStudent(studentId);
+    msg("stMsg","Studerende slettet.","ok");
+    await refreshStudentsIntoSelects();
+  } catch(e){
+    msg("stMsg", e.message || String(e), "error");
+  }
+}
+
+/* =========================
+   EVALUATION ACTIONS
+========================= */
+async function addBeskrivelse(){
+  msg("besMsg","");
+  try{
+    const studentId = $("studentSelect").value;
+    if (!studentId) return msg("besMsg","Vælg en studerende.","error");
+
+    const modality = $("modality").value;
+
+    const anatomy = [];
+    if ($("anCere").checked) anatomy.push("cerebrum");
+    if ($("anCol").checked) anatomy.push("columna");
+    if (!anatomy.length) return msg("besMsg","Vælg mindst én anatomi.","error");
+
+    const topics = checkedValues("topicChk");
+    if (!topics.length) return msg("besMsg","Vælg mindst ét emne.","error");
+
+    const clinical_scale = parseInt($("scale").value, 10);
+    const error_types = checkedValues("errChk");
+    const beskrivelse_date = $("bDate").value || null;
+    const supervision_date = $("sDate").value || null;
+
+    await dbInsertEval([{
+      student_id: studentId,
+      eval_type: "beskrivelse",
+      modality,
+      anatomy,
+      topics,
+      clinical_scale,
+      error_types: error_types.length ? error_types : null,
+      beskrivelse_date,
+      supervision_date
+    }]);
+
+    msg("besMsg","Gemte beskrivelse.","ok");
+  } catch(e){
+    msg("besMsg", e.message || String(e), "error");
+  }
+}
+
+async function addVisitation(){
+  msg("visMsg","");
+  try{
+    const studentId = $("studentSelect").value;
+    if (!studentId) return msg("visMsg","Vælg en studerende.","error");
+
+    const visitation_result = $("visRes").value;
+    const visitation_date = $("visDate").value || null;
+
+    await dbInsertEval([{
+      student_id: studentId,
+      eval_type: "visitation",
+      visitation_result,
+      visitation_date
+    }]);
+
+    msg("visMsg","Gemte visitation.","ok");
+  } catch(e){
+    msg("visMsg", e.message || String(e), "error");
+  }
+}
+
+/* =========================
+   RESULTS + FULL STATS
+========================= */
+let overallChart = null;
+let topicChart = null;
+let lastTimeseries = []; // [{topic,d,clinical_scale}]
+let lastStudentName = "";
+let lastStudentId = "";
+let lastStudentLevel = "Intro";
+let lastEvals = [];
+
+function hideCharts(){
+  show($("overallCard"), false);
+  show($("topicCard"), false);
+  if (overallChart) { overallChart.destroy(); overallChart = null; }
+  if (topicChart) { topicChart.destroy(); topicChart = null; }
+}
+
+function getEvalDate(e){
+  if (e.eval_type === "visitation") return toDateKey(e.visitation_date || e.created_at);
+  return toDateKey(e.supervision_date || e.beskrivelse_date || e.created_at);
+}
+
+function buildTimeseriesForStudent(evs){
+  const bes = evs.filter(e => e.eval_type === "beskrivelse" && e.clinical_scale != null);
+  const ts = [];
+  for (const e of bes){
+    const d = getEvalDate(e);
+    for (const t of (e.topics || [])){
+      ts.push({ topic: t, d, clinical_scale: e.clinical_scale, modality: e.modality, anatomy: e.anatomy || [] });
+    }
+  }
+  return ts;
+}
+
+function groupByDateAvg(rows){
+  const map = new Map();
+  for (const r of rows){
+    const key = String(r.d).slice(0,10);
+    const arr = map.get(key) || [];
+    arr.push(Number(r.clinical_scale));
+    map.set(key, arr);
+  }
+  const labels = Array.from(map.keys()).sort();
+  const values = labels.map(d => {
+    const arr = map.get(d) || [];
+    return arr.reduce((a,b)=>a+b,0) / (arr.length || 1);
+  });
+  return { labels, values };
+}
+
+function renderDataTable(evs){
+  const body = $("dataBody");
+  body.innerHTML = "";
+  const last200 = evs.slice(-200).reverse();
+
+  for (const e of last200){
+    const tr = document.createElement("tr");
+    const date = getEvalDate(e);
+
+    tr.innerHTML = `
+      <td>${csvEscape(e.eval_type)}</td>
+      <td>${csvEscape(date)}</td>
+      <td>${csvEscape(e.modality || "")}</td>
+      <td>${csvEscape((e.anatomy||[]).join(" / "))}</td>
+      <td>${csvEscape((e.topics||[]).join(" | "))}</td>
+      <td>${csvEscape(e.clinical_scale ?? "")}</td>
+      <td>${csvEscape(e.visitation_result ?? "")}</td>
+      <td>${csvEscape((e.error_types||[]).join(" | "))}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
+function calcGoodPct(besRows){
+  const total = besRows.length;
+  const good = besRows.filter(e => e.clinical_scale === 3 || e.clinical_scale === 4).length;
+  return { total, good, pct: total ? Math.round((good/total)*100) : 0 };
+}
+
+function statusChip(status){
+  if (status === "Grøn") return `<span class="pill ok">Grøn</span>`;
+  if (status === "Gul") return `<span class="pill warn">Gul</span>`;
+  return `<span class="pill bad">Rød</span>`;
+}
+
+function computeTopicStatus(topic, besEvents, thresholdPct){
+  const req = TOPIC_REQUIREMENTS[topic] ?? 0;
+  const inTopic = besEvents.filter(e => (e.topics || []).includes(topic));
+  const { total, pct } = calcGoodPct(inTopic);
+
+  const okCount = total >= req;
+  const okPct = pct >= thresholdPct;
+
+  const nearCount = req > 0 ? total >= Math.ceil(req * (1 - NEAR_MARGIN/100)) : true;
+  const nearPct = pct >= (thresholdPct - NEAR_MARGIN);
+
+  let status = "Rød";
+  if (okCount && okPct) status = "Grøn";
+  else if ((nearCount && okPct) || (okCount && nearPct) || (nearCount && nearPct)) status = "Gul";
+
+  return { topic, total, req, pct, status };
+}
+
+function renderSummary(student, evs){
+  const bes = evs.filter(e => e.eval_type === "beskrivelse");
+  const { total, pct } = calcGoodPct(bes);
+
+  const pills = [];
+  pills.push(`<span class="pill">Niveau: ${csvEscape(student?.level || "")}</span>`);
+  pills.push(`<span class="pill">Beskrivelser: ${total}</span>`);
+  pills.push(`<span class="pill">3+4: ${pct}%</span>`);
+  html("summaryPills", pills.join(""));
+}
+
+function renderFinalEvaluation(student, evs){
+  // threshold based on level
+  const level = (student?.level || "Intro");
+  const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
+
+  const bes = evs.filter(e => e.eval_type === "beskrivelse");
+
+  // compute per-topic
+  const perTopic = TOPICS
+    .filter(t => (TOPIC_REQUIREMENTS[t] ?? 0) > 0) // only required ones affect final
+    .map(t => computeTopicStatus(t, bes, thresholdPct));
+
+  const hasRed = perTopic.some(x => x.status === "Rød");
+  const hasYellow = perTopic.some(x => x.status === "Gul");
+
+  let finalStatus = "Grøn";
+  if (hasRed) finalStatus = "Rød";
+  else if (hasYellow) finalStatus = "Gul";
+
+  const box = $("finalBox");
+  box.className = "callout " + (finalStatus==="Grøn" ? "ok" : finalStatus==="Gul" ? "warn" : "bad");
+
+  const overall = calcGoodPct(bes);
+  const txt = [];
+  txt.push(`<b>Niveau:</b> ${csvEscape(level)} · <b>Krav 3+4:</b> ${thresholdPct}% · <b>Samlet 3+4:</b> ${overall.pct}%`);
+  txt.push(`<div class="small" style="margin-top:6px"><b>Regel:</b> Alle krævede emner skal opfylde både minimum antal og 3+4%-kravet.</div>`);
+  $("finalText").innerHTML = `
+    <div><b>Status:</b> ${statusChip(finalStatus)}</div>
+    <div style="margin-top:6px">${txt.join("<br/>")}</div>
+  `;
+
+  show($("finalCard"), true);
+
+  return { thresholdPct, perTopic, finalStatus };
+}
+
+function renderStats(student, evs, thresholdPct, perTopic){
+  // modality/anatomy/error counts based on beskrivelse only (for your stats)
+  const bes = evs.filter(e => e.eval_type === "beskrivelse");
+  const modalityCount = { CT:0, MR:0 };
+  const anatomyCount = { cerebrum:0, columna:0 };
+  const errorsCount = Object.fromEntries(ERROR_TYPES.map(x => [x,0]));
+  const modAnat = {
+    CT: { cerebrum:0, columna:0 },
+    MR: { cerebrum:0, columna:0 }
+  };
+
+  for (const e of bes){
+    if (e.modality === "CT") modalityCount.CT++;
+    if (e.modality === "MR") modalityCount.MR++;
+
+    const an = e.anatomy || [];
+    const hasC = an.includes("cerebrum");
+    const hasCo = an.includes("columna");
+    if (hasC) anatomyCount.cerebrum++;
+    if (hasCo) anatomyCount.columna++;
+
+    if (e.modality && (hasC || hasCo)){
+      if (hasC && modAnat[e.modality]) modAnat[e.modality].cerebrum += 1;
+      if (hasCo && modAnat[e.modality]) modAnat[e.modality].columna += 1;
+    }
+
+    const errs = e.error_types || [];
+    for (const err of errs){
+      if (errorsCount[err] != null) errorsCount[err]++;
+    }
+  }
+
+  // tables
+  $("tblModality").innerHTML = `
+    <tr><td>CT</td><td>${modalityCount.CT}</td></tr>
+    <tr><td>MR</td><td>${modalityCount.MR}</td></tr>
+  `;
+
+  $("tblAnatomy").innerHTML = `
+    <tr><td>cerebrum</td><td>${anatomyCount.cerebrum}</td></tr>
+    <tr><td>columna</td><td>${anatomyCount.columna}</td></tr>
+  `;
+
+  $("tblErrors").innerHTML = ERROR_TYPES.map(t => `<tr><td>${csvEscape(t)}</td><td>${errorsCount[t]||0}</td></tr>`).join("");
+
+  $("tblModAnat").innerHTML = `
+    <tr><td><b>CT</b></td><td>${modAnat.CT.cerebrum}</td><td>${modAnat.CT.columna}</td></tr>
+    <tr><td><b>MR</b></td><td>${modAnat.MR.cerebrum}</td><td>${modAnat.MR.columna}</td></tr>
+  `;
+
+  // topic status table (required + show øvige too)
+  const allTopicStatuses = TOPICS.map(t => computeTopicStatus(t, bes, thresholdPct));
+  $("tblTopicStatus").innerHTML = allTopicStatuses.map(x => `
+    <tr>
+      <td>${csvEscape(x.topic)}</td>
+      <td>${x.total}</td>
+      <td>${x.req}</td>
+      <td>${x.pct}%</td>
+      <td>${statusChip(x.status)}</td>
+    </tr>
+  `).join("");
+
+  show($("statsCard"), true);
+}
+
+function renderOverall(studentName){
+  const rows = lastTimeseries;
+  if (!rows.length){ show($("overallCard"), false); return; }
+
+  show($("overallCard"), true);
+  $("overallTitle").textContent = `${studentName} – samlet udvikling (gennemsnit pr. dato)`;
+
+  const { labels, values } = groupByDateAvg(rows);
+  const ctx = $("overallChart").getContext("2d");
+  if (overallChart) overallChart.destroy();
+  overallChart = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets: [{ data: values, tension: 0.2 }] },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      scales: { y: { min:1, max:4, ticks:{ stepSize:1 } } },
+      plugins: { legend: { display:false } }
+    }
+  });
+}
+
+function renderTopic(studentName){
+  const topic = $("topicSelect").value;
+  const rows = lastTimeseries.filter(r => r.topic === topic);
+
+  show($("topicCard"), true);
+  $("topicTitle").textContent = `${studentName} – ${topic} (gennemsnit pr. dato)`;
+
+  const ctx = $("topicChart").getContext("2d");
+  if (topicChart) topicChart.destroy();
+
+  if (!rows.length){
+    topicChart = new Chart(ctx, {
+      type: "line",
+      data: { labels: [], datasets: [{ data: [] }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
+    });
+    return;
+  }
+
+  const { labels, values } = groupByDateAvg(rows);
+  topicChart = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets: [{ data: values, tension: 0.2 }] },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      scales: { y: { min:1, max:4, ticks:{ stepSize:1 } } },
+      plugins: { legend: { display:false } }
+    }
+  });
+}
+
+function initTopicSelect(){
+  $("topicSelect").innerHTML = TOPICS.map(t => `<option value="${t}">${t}</option>`).join("");
+}
+
+/* CSV download (student + evals) */
+function downloadCSV(){
+  if (!lastStudentId) return;
+  const student = lastStudentObj || null;
+  const evs = lastEvals || [];
+
+  const lines = [];
+  lines.push(["student","level","start_date","expected_end_date","competence_required"].map(csvEscape).join(","));
+  lines.push([student?.name, student?.level, student?.start_date, student?.expected_end_date, student?.competence_required].map(csvEscape).join(","));
+  lines.push("");
+
+  lines.push(["id","type","date","modality","anatomy","topics","scale","visitation","errors","beskrivelse_date","supervision_date","created_at"].map(csvEscape).join(","));
+  for (const e of evs){
+    lines.push([
+      e.id,
+      e.eval_type,
+      getEvalDate(e),
+      e.modality || "",
+      (e.anatomy||[]).join("|"),
+      (e.topics||[]).join("|"),
+      e.clinical_scale ?? "",
+      e.visitation_result ?? "",
+      (e.error_types||[]).join("|"),
+      e.beskrivelse_date ?? "",
+      e.supervision_date ?? "",
+      e.created_at ?? ""
+    ].map(csvEscape).join(","));
+  }
+
+  const blob = new Blob([lines.join("\r\n")], { type:"text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `student_${(student?.name||"student").replace(/\s+/g,"_")}_${todayISO()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* =========================
+   IMPORT JSON -> SUPABASE
+========================= */
+async function importJSONToSupabase(){
+  msg("importMsg","");
+  try{
+    if (!canImport()) return msg("importMsg","Ingen adgang.","error");
+
+    const f = $("jsonFile")?.files?.[0];
+    if (!f) return msg("importMsg","Vælg en JSON-fil først.","error");
+
+    const text = await f.text();
+    let payload;
+    try { payload = JSON.parse(text); }
+    catch { return msg("importMsg","Ugyldig JSON.","error"); }
+
+    const students = payload.students || [];
+    const evals = payload.evals || [];
+
+    msg("importMsg",`Importer... students=${students.length}, evals=${evals.length}`,"ok");
+
+    if (students.length){
+      const stPayload = students.map(s => ({
+        id: s.id,
+        name: s.name,
+        start_date: s.start_date || null,
+        expected_end_date: s.expected_end_date || null,
+        level: s.level || null,
+        competence_required: !!s.competence_required
+      }));
+
+      const { error } = await supabaseClient.from("students").upsert(stPayload, { onConflict: "id" });
+      if (error) throw error;
+    }
+
+    const chunkSize = 200;
+    for (let i = 0; i < evals.length; i += chunkSize){
+      const chunk = evals.slice(i, i + chunkSize).map(e => ({
+        id: e.id,
+        student_id: e.student_id,
+        eval_type: e.eval_type,
+        modality: e.modality ?? null,
+        anatomy: e.anatomy ?? null,
+        topics: e.topics ?? null,
+        clinical_scale: e.clinical_scale ?? null,
+        error_types: e.error_types ?? null,
+        visitation_result: e.visitation_result ?? null,
+        visitation_date: e.visitation_date ?? null,
+        beskrivelse_date: e.beskrivelse_date ?? null,
+        supervision_date: e.supervision_date ?? null,
+        created_at: e.created_at ?? null
+      }));
+
+      const { error } = await supabaseClient.from("evaluations").upsert(chunk, { onConflict: "id" });
+      if (error) throw error;
+    }
+
+    msg("importMsg","Import færdig ✅","ok");
+    await refreshStudentsIntoSelects();
+  } catch(e){
+    msg("importMsg", e.message || String(e), "error");
+  }
+}
+
+/* =========================
+   SHOW RESULTS (MAIN)
+========================= */
+let lastStudentObj = null;
+
+async function showResults(){
+  msg("resMsg","");
+  hideCharts();
+  show($("finalCard"), false);
+  show($("statsCard"), false);
+
+  const opt = $("studentSelectResults").selectedOptions[0];
+  if (!opt) return msg("resMsg","Vælg en studerende.","error");
+
+  const studentId = opt.value;
+  const studentName = opt.textContent;
+
+  lastStudentId = studentId;
+  lastStudentName = studentName;
+
+  try{
+    const [students, evs] = await Promise.all([dbGetStudents(), dbGetEvals(studentId)]);
+    const student = students.find(s => s.id === studentId);
+    lastStudentObj = student || null;
+    lastStudentLevel = student?.level || "Intro";
+    lastEvals = evs;
+
+    // summary
+    renderSummary(student, evs);
+
+    // data table
+    renderDataTable(evs);
+
+    // charts time series
+    lastTimeseries = buildTimeseriesForStudent(evs);
+    renderOverall(studentName);
+
+    initTopicSelect();
+    $("topicSelect").value = TOPICS[0];
+    renderTopic(studentName);
+
+    // final evaluation + stats
+    const { thresholdPct, perTopic } = renderFinalEvaluation(student, evs);
+    renderStats(student, evs, thresholdPct, perTopic);
+
+    msg("resMsg","OK","ok");
+    $("btnCSV").disabled = false;
+  } catch(e){
+    msg("resMsg", e.message || String(e), "error");
+  }
+}
+
+/* =========================
+   WIRE + BOOT
+========================= */
+function boot(){
+  buildCheckboxes();
+  setEvalUI();
+  initTopicSelect();
+  updateUIByRole();
+  hideCharts();
+
+  $("evalType").addEventListener("change", setEvalUI);
+  $("btnSameDate").addEventListener("click", () => $("sDate").value = $("bDate").value);
+
+  $("btnLogin").addEventListener("click", login);
+  $("btnLogout").addEventListener("click", logout);
+  $("btnChangePassword").addEventListener("click", changePassword);
+
+  $("btnSaveStudent").addEventListener("click", saveStudent);
+  $("btnDeleteStudent").addEventListener("click", deleteSelectedStudent);
+
+  $("btnAddBes").addEventListener("click", addBeskrivelse);
+  $("btnAddVis").addEventListener("click", addVisitation);
+
+  $("btnShowResults").addEventListener("click", showResults);
+  $("btnShowTopic").addEventListener("click", () => renderTopic(lastStudentName));
+
+  $("btnImportJSON").addEventListener("click", importJSONToSupabase);
+  $("btnCSV").addEventListener("click", downloadCSV);
+
+  $("btnCSV").disabled = true;
+}
+boot();
+</script>
+</body>
+</html>
