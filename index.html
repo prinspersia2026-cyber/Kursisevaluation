@@ -271,11 +271,20 @@ canvas{
           <select id="studentSelectResults"></select>
         </div>
         <div>
-          <button type="button" id="btnShowResults">Vis resultater</button>
-        </div>
-        <div>
-          <button type="button" id="btnCSV" disabled>Download CSV</button>
-        </div>
+<button type="button" id="btnShowResults">Vis resultater</button>
+</div>
+
+<div>
+<button type="button" class="btn-secondary" id="btnEditSelected">Edit selected</button>
+</div>
+
+<div>
+<button type="button" class="btn-danger" id="btnDeleteSelected">Delete selected</button>
+</div>
+
+<div>
+<button type="button" id="btnCSV" disabled>Download CSV</button>
+</div>
       </div>
 
       <p id="resMsg" class="small"></p>
@@ -427,7 +436,6 @@ const TOPICS = [
   "Bihuler",
   "Øvrige"
 ];
-
 
 const TOPIC_REQUIREMENTS = {
   "Vaskulære": 50,
@@ -802,6 +810,8 @@ async function addVisitation(){
    RESULTS + FULL STATS
 ========================= */
 let overallChart = null;
+let selectedEvalId = null;
+let selectedEvalRow = null;
 let topicChart = null;
 let lastTimeseries = []; // [{topic,d,clinical_scale}]
 let lastStudentName = "";
@@ -868,6 +878,17 @@ function renderDataTable(evs){
       <td>${csvEscape(e.visitation_result ?? "")}</td>
       <td>${csvEscape((e.error_types||[]).join(" | "))}</td>
     `;
+tr.style.cursor = "pointer";
+tr.addEventListener("click", () => {
+  selectedEvalId = e.id;
+  selectedEvalRow = e;
+
+  // highlight ساده
+  Array.from(document.querySelectorAll("#dataBody tr")).forEach(x => x.style.outline = "");
+  tr.style.outline = "2px solid #111";
+
+  msg("resMsg", `Selected row: ${e.eval_type}`, "ok");
+});
     body.appendChild(tr);
   }
 }
@@ -908,7 +929,7 @@ function renderSummary(student, evs){
 
   const pills = [];
   pills.push(`<span class="pill">Niveau: ${csvEscape(student?.level || "")}</span>`);
-  if (student?.competence_required){
+if (student?.competence_required){
   pills.push(`<span class="pill" style="background:#fff0f0;border-color:#ffb3b3;">
     Competence kræves
   </span>`);
@@ -1278,6 +1299,61 @@ async function exportJSONBackup(){
 /* =========================
    WIRE + BOOT
 ========================= */
+async function deleteSelectedEval(){
+  msg("resMsg","");
+  try{
+    if (!selectedEvalId) return msg("resMsg","Select a row in the table first.","error");
+    if (!confirm("Delete selected evaluation?")) return;
+
+    const { error } = await supabaseClient
+      .from("evaluations")
+      .delete()
+      .eq("id", selectedEvalId);
+
+    if (error) throw error;
+
+    selectedEvalId = null;
+    selectedEvalRow = null;
+
+    msg("resMsg","Deleted ✅","ok");
+    await showResults(); // refresh
+  } catch(e){
+    msg("resMsg", e.message || String(e), "error");
+  }
+}
+
+async function editSelectedEval(){
+  msg("resMsg","");
+  try{
+    if (!selectedEvalId || !selectedEvalRow) return msg("resMsg","Select a row first.","error");
+
+    // ساده‌ترین ادیت: فقط clinical_scale برای beskrivelse
+    if (selectedEvalRow.eval_type !== "beskrivelse"){
+      return msg("resMsg","This simple editor only supports 'beskrivelse' rows.","error");
+    }
+
+    const current = selectedEvalRow.clinical_scale ?? "";
+    const next = prompt("New clinical scale (1-4):", String(current));
+    if (next == null) return; // cancel
+
+    const n = parseInt(next, 10);
+    if (![1,2,3,4].includes(n)){
+      return msg("resMsg","Scale must be 1, 2, 3, or 4.","error");
+    }
+
+    const { error } = await supabaseClient
+      .from("evaluations")
+      .update({ clinical_scale: n })
+      .eq("id", selectedEvalId);
+
+    if (error) throw error;
+
+    msg("resMsg","Updated ✅","ok");
+    await showResults(); // refresh
+  } catch(e){
+    msg("resMsg", e.message || String(e), "error");
+  }
+}
 function boot(){
   buildCheckboxes();
   setEvalUI();
@@ -1301,6 +1377,9 @@ function boot(){
   $("btnShowResults").addEventListener("click", showResults);
   $("btnShowTopic").addEventListener("click", () => renderTopic(lastStudentName));
 
+$("btnEditSelected").addEventListener("click", editSelectedEval);
+$("btnDeleteSelected").addEventListener("click", deleteSelectedEval);
+
  $("btnImportJSON").addEventListener("click", importJSONToSupabase);
 $("btnExportJSON").addEventListener("click", exportJSONBackup);
 $("btnCSV").addEventListener("click", downloadCSV);
@@ -1311,5 +1390,3 @@ boot();
 </script>
 </body>
 </html>
-
-
