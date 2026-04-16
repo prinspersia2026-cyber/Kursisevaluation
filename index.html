@@ -64,7 +64,7 @@ canvas{
 
 <body>
   <h1>Neuroradiologi – Online Evaluering</h1>
-
+  <p class="small muted">Online version. Data gemmes i Supabase.</p>
 
   <!-- LOGIN -->
   <div class="card" id="loginCard">
@@ -343,13 +343,16 @@ canvas{
           <h3 class="muted" style="margin:6px 0">Emne-status (krav + % 3+4)</h3>
           <table>
             <thead>
-              <tr>
-                <th>Emne</th>
-                <th>Antal</th>
-                <th>Krav</th>
-                <th>3+4 (%)</th>
-                <th>Status</th>
-              </tr>
+            <tr>
+               	<th>Emne</th>
+  		<th>Antal</th>
+  		<th>Krav</th>
+  		<th>3+4 (%)</th>
+  		<th>Status</th>
+ 		 <th>Manuel godkendelse</th>
+  		<th>Begrundelse</th>
+  		<th>Handling</th>
+	    </tr>
             </thead>
             <tbody id="tblTopicStatus"></tbody>
           </table>
@@ -370,6 +373,25 @@ canvas{
         </div>
         <p id="importMsg" class="small"></p>
       </div>
+
+<div class="card" id="errorTrendCard" style="display:none">
+  <h3>Fejltrend pr. uge</h3>
+
+  <div class="chart-card" style="margin-top:10px">
+    <div class="chart-title" id="errorTrendTitle"></div>
+    <canvas id="errorTrendChart"></canvas>
+  </div>
+
+  <div class="chart-card" style="margin-top:10px">
+    <div class="chart-title" id="errorTypeTrendTitle"></div>
+    <canvas id="errorTypeTrendChart"></canvas>
+  </div>
+
+  <div class="chart-card" style="margin-top:10px">
+    <div class="chart-title" id="errorRateTrendTitle"></div>
+    <canvas id="errorRateTrendChart"></canvas>
+  </div>
+</div>
 
       <hr/>
 
@@ -477,6 +499,41 @@ function checkedValues(cls){
 }
 function toDateKey(d){ return String(d || "").slice(0,10); }
 
+function getWeekKey(dateStr){
+  const d = new Date(dateStr);
+  if (isNaN(d)) return "";
+
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+
+  return monday.toISOString().slice(0,10);
+}
+
+function detectTrend(values){
+  const clean = values.filter(v => typeof v === "number" && !isNaN(v));
+  if (clean.length < 4) return "Ikke nok data";
+
+  const half = Math.floor(clean.length / 2);
+  const first = clean.slice(0, half);
+  const second = clean.slice(half);
+
+  const avg1 = first.reduce((a,b)=>a+b,0) / first.length;
+  const avg2 = second.reduce((a,b)=>a+b,0) / second.length;
+
+  if (avg2 > avg1 + 0.01) return "Stigende";
+  if (avg2 < avg1 - 0.01) return "Faldende";
+  return "Stabil";
+}
+
+
+function canManualApproveTopics(){
+  return ["admin", "administrative"].includes(currentRole);
+}
+
+
 /* =========================
    CLEAN FETCH + TOKENS
 ========================= */
@@ -515,6 +572,7 @@ function canManageStudents(){ return ["admin","administrative"].includes(current
 function canInsertEval(){ return ["admin","administrative","evaluator"].includes(currentRole); }
 function canSeeResults(){ return ["admin","administrative","evaluator","observer"].includes(currentRole); }
 function canImport(){ return ["admin","administrative"].includes(currentRole); }
+function canManualApproveTopics(){ return ["admin","administrative"].includes(currentRole); }
 
 async function loadUserRole(){
   currentRole = null;
@@ -539,7 +597,10 @@ function updateUIByRole(){
 
   $("whoAmI").textContent = `${currentUser.email} · ${currentRole || "(no role)"}`;
   $("roleNote").textContent =
-  
+    `Role: ${currentRole || "(no role)"} · ` +
+    `Students: ${canManageStudents() ? "YES" : "NO"} · ` +
+    `Insert eval: ${canInsertEval() ? "YES" : "NO"} · ` +
+    `Results: ${canSeeResults() ? "YES" : "NO"}`;
 
   show($("studentsCard"), canManageStudents());
   show($("evaluationCard"), canInsertEval());
@@ -662,6 +723,38 @@ async function dbGetEvals(studentId){
   if (error) throw error;
   return data || [];
 }
+
+async function dbGetManualApprovals(studentId){
+  const { data, error } = await supabaseClient
+    .from("manual_topic_approvals")
+    .select("*")
+    .eq("student_id", studentId);
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function dbUpsertManualApproval(payload){
+  const { error } = await supabaseClient
+    .from("manual_topic_approvals")
+    .upsert(payload, { onConflict: "student_id,topic" });
+
+  if (error) throw error;
+}
+
+
+async function dbDeleteManualApproval(studentId, topic){
+  const { error } = await supabaseClient
+    .from("manual_topic_approvals")
+    .delete()
+    .eq("student_id", studentId)
+    .eq("topic", topic);
+
+  if (error) throw error;
+}
+
+
+
 
 /* =========================
    UI INIT
@@ -812,6 +905,9 @@ let overallChart = null;
 let selectedEvalId = null;
 let selectedEvalRow = null;
 let topicChart = null;
+let errorTrendChart = null;
+let errorTypeTrendChart = null;
+let errorRateTrendChart = null;
 let lastTimeseries = []; // [{topic,d,clinical_scale}]
 let lastStudentName = "";
 let lastStudentId = "";
@@ -821,8 +917,13 @@ let lastEvals = [];
 function hideCharts(){
   show($("overallCard"), false);
   show($("topicCard"), false);
+  show($("errorTrendCard"), false);
+
   if (overallChart) { overallChart.destroy(); overallChart = null; }
   if (topicChart) { topicChart.destroy(); topicChart = null; }
+  if (errorTrendChart) { errorTrendChart.destroy(); errorTrendChart = null; }
+  if (errorTypeTrendChart) { errorTypeTrendChart.destroy(); errorTypeTrendChart = null; }
+  if (errorRateTrendChart) { errorRateTrendChart.destroy(); errorRateTrendChart = null; }
 }
 
 function getEvalDate(e){
@@ -841,6 +942,61 @@ function buildTimeseriesForStudent(evs){
   }
   return ts;
 }
+
+function buildWeeklyErrorTrendSeries(evs){
+  const bes = evs.filter(e => e.eval_type === "beskrivelse");
+  const byWeek = new Map();
+
+  for (const e of bes){
+    const rawDate = getEvalDate(e);
+    const weekKey = getWeekKey(rawDate);
+    if (!weekKey) continue;
+
+    if (!byWeek.has(weekKey)){
+      byWeek.set(weekKey, {
+        totalErrors: 0,
+        totalCases: 0,
+        overseelse: 0,
+        fejltolkning: 0,
+        "manglende samvittighedsfuldhed": 0
+      });
+    }
+
+    const row = byWeek.get(weekKey);
+    row.totalCases += 1;
+
+    const errs = Array.isArray(e.error_types) ? e.error_types : [];
+    for (const err of errs){
+      row.totalErrors += 1;
+      if (row[err] != null) row[err] += 1;
+    }
+  }
+
+  const labels = Array.from(byWeek.keys()).sort();
+
+  const totalErrors = labels.map(w => byWeek.get(w).totalErrors);
+  const totalCases = labels.map(w => byWeek.get(w).totalCases);
+  const overseelse = labels.map(w => byWeek.get(w).overseelse);
+  const fejltolkning = labels.map(w => byWeek.get(w).fejltolkning);
+  const manglende = labels.map(w => byWeek.get(w)["manglende samvittighedsfuldhed"]);
+
+  const errorRate = labels.map(w => {
+    const row = byWeek.get(w);
+    if (!row.totalCases) return 0;
+    return Number((row.totalErrors / row.totalCases).toFixed(2));
+  });
+
+  return {
+    labels,
+    totalErrors,
+    totalCases,
+    overseelse,
+    fejltolkning,
+    manglende,
+    errorRate
+  };
+}
+
 
 function groupByDateAvg(rows){
   const map = new Map();
@@ -942,43 +1098,82 @@ if (student?.competence_required){
   html("summaryPills", pills.join(""));
 }
 
-function renderFinalEvaluation(student, evs){
-  // threshold based on level
+
+
+
+function renderFinalEvaluation(student, evs, manualApprovalMap){
   const level = (student?.level || "Intro");
   const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
 
   const bes = evs.filter(e => e.eval_type === "beskrivelse");
 
-  // compute per-topic
-  const perTopic = TOPICS
-    .filter(t => (TOPIC_REQUIREMENTS[t] ?? 0) > 0) // only required ones affect final
-    .map(t => computeTopicStatus(t, bes, thresholdPct));
+ 
+  const allTopicStatuses = TOPICS.map(t => computeTopicStatus(t, bes, thresholdPct));
 
-  const hasRed = perTopic.some(x => x.status === "Rød");
-  const hasYellow = perTopic.some(x => x.status === "Gul");
+
+ const requiredTopicStatuses = allTopicStatuses
+  .filter(x => (TOPIC_REQUIREMENTS[x.topic] ?? 0) > 0)
+  .map(x => {
+    const manual = manualApprovalMap?.[x.topic];
+    if (manual?.approved) {
+      return { ...x, status: "Grøn", manuallyApproved: true };
+    }
+    return { ...x, manuallyApproved: false };
+  });
+
+  
+  const pctValues = requiredTopicStatuses.map(x => x.pct);
+  const averagePct = pctValues.length
+    ? Math.round(pctValues.reduce((a,b) => a + b, 0) / pctValues.length)
+    : 0;
+
+   
+  const hasRed = requiredTopicStatuses.some(x => x.status === "Rød");
 
   let finalStatus = "Grøn";
-  if (hasRed) finalStatus = "Rød";
-  else if (hasYellow) finalStatus = "Gul";
+
+  if (hasRed) {
+    finalStatus = "Rød";
+  } else if (averagePct < thresholdPct) {
+    finalStatus = "Gul";
+  } else {
+    finalStatus = "Grøn";
+  }
 
   const box = $("finalBox");
-  box.className = "callout " + (finalStatus==="Grøn" ? "ok" : finalStatus==="Gul" ? "warn" : "bad");
+  box.className = "callout " + (
+    finalStatus === "Grøn" ? "ok" :
+    finalStatus === "Gul" ? "warn" : "bad"
+  );
 
-  const overall = calcGoodPct(bes);
-  const txt = [];
-  txt.push(`<b>Niveau:</b> ${csvEscape(level)} · <b>Krav 3+4:</b> ${thresholdPct}% · <b>Samlet 3+4:</b> ${overall.pct}%`);
-  txt.push(`<div class="small" style="margin-top:6px"><b>Regel:</b> Alle krævede emner skal opfylde både minimum antal og 3+4%-kravet.</div>`);
   $("finalText").innerHTML = `
     <div><b>Status:</b> ${statusChip(finalStatus)}</div>
-    <div style="margin-top:6px">${txt.join("<br/>")}</div>
+    <div style="margin-top:6px">
+      <b>Niveau:</b> ${csvEscape(level)}<br/>
+      <b>Krav 3+4:</b> ${thresholdPct}%<br/>
+      <b>Gennemsnit af emneprocenter:</b> ${averagePct}%
+    </div>
+    <div class="small" style="margin-top:6px">
+      <b>Regel:</b> Hvis bare ét krævet emne er Rød, bliver den endelige vurdering Rød. 
+      Hvis ingen emner er Rød, vises slutstatus ud fra gennemsnittet af 3+4%-resultaterne.
+    </div>
   `;
 
   show($("finalCard"), true);
 
-  return { thresholdPct, perTopic, finalStatus };
+  return {
+    thresholdPct,
+    perTopic: requiredTopicStatuses,
+    finalStatus,
+    averagePct
+  };
 }
 
-function renderStats(student, evs, thresholdPct, perTopic){
+
+
+
+
+function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
   // modality/anatomy/error counts based on beskrivelse only (for your stats)
   const bes = evs.filter(e => e.eval_type === "beskrivelse");
   const modalityCount = { CT:0, MR:0 };
@@ -1029,16 +1224,59 @@ function renderStats(student, evs, thresholdPct, perTopic){
   `;
 
   // topic status table (required + show øvige too)
-  const allTopicStatuses = TOPICS.map(t => computeTopicStatus(t, bes, thresholdPct));
-  $("tblTopicStatus").innerHTML = allTopicStatuses.map(x => `
+
+const allTopicStatuses = TOPICS.map(t => computeTopicStatus(t, bes, thresholdPct));
+
+$("tblTopicStatus").innerHTML = allTopicStatuses.map(x => {
+  const manual = manualApprovalMap?.[x.topic] || null;
+  const isManualApproved = !!manual?.approved;
+
+  const shownStatus = isManualApproved ? "Grøn" : x.status;
+
+  const approvalText = isManualApproved ? "Godkendt manuelt" : "—";
+
+  const approvedInfo = isManualApproved
+    ? `
+      <div>${csvEscape(manual.reason || "")}</div>
+      <div class="small muted">
+        ${csvEscape(manual.approved_by_email || "")}
+        ${manual.approved_at ? " · " + csvEscape(new Date(manual.approved_at).toLocaleString()) : ""}
+      </div>
+    `
+    : "—";
+
+  let actionHtml = "—";
+  if (canManualApproveTopics()){
+    if (isManualApproved){
+      actionHtml = `
+        <button type="button" class="btn-danger" onclick="removeManualApproval('${x.topic}')">
+          Fjern godkendelse
+        </button>
+      `;
+    } else {
+      actionHtml = `
+        <button type="button" class="btn-secondary" onclick="manualApproveTopic('${x.topic}')">
+          Godkend manuelt
+        </button>
+      `;
+    }
+  }
+
+  return `
     <tr>
       <td>${csvEscape(x.topic)}</td>
       <td>${x.total}</td>
       <td>${x.req}</td>
       <td>${x.pct}%</td>
-      <td>${statusChip(x.status)}</td>
+      <td>${statusChip(shownStatus)}</td>
+      <td>${approvalText}</td>
+      <td>${approvedInfo}</td>
+      <td>${actionHtml}</td>
     </tr>
-  `).join("");
+  `;
+}).join("");
+
+
 
   show($("statsCard"), true);
 }
@@ -1065,6 +1303,10 @@ function renderOverall(studentName){
   });
 }
 
+
+
+
+
 function renderTopic(studentName){
   const topic = $("topicSelect").value;
   const rows = lastTimeseries.filter(r => r.topic === topic);
@@ -1079,7 +1321,11 @@ function renderTopic(studentName){
     topicChart = new Chart(ctx, {
       type: "line",
       data: { labels: [], datasets: [{ data: [] }] },
-      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } }
+      }
     });
     return;
   }
@@ -1089,13 +1335,115 @@ function renderTopic(studentName){
     type: "line",
     data: { labels, datasets: [{ data: values, tension: 0.2 }] },
     options: {
-      responsive:true,
-      maintainAspectRatio:false,
-      scales: { y: { min:1, max:4, ticks:{ stepSize:1 } } },
-      plugins: { legend: { display:false } }
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { min: 1, max: 4, ticks: { stepSize: 1 } } },
+      plugins: { legend: { display: false } }
     }
   });
 }
+
+function renderWeeklyErrorTrends(studentName, evs){
+  const series = buildWeeklyErrorTrendSeries(evs);
+
+  if (!series.labels.length){
+    show($("errorTrendCard"), false);
+    return;
+  }
+
+  show($("errorTrendCard"), true);
+
+  const totalTrend = detectTrend(series.totalErrors);
+  const rateTrend = detectTrend(series.errorRate);
+
+  $("errorTrendTitle").textContent =
+    `${studentName} – samlet antal fejl pr. uge (${totalTrend})`;
+
+  $("errorTypeTrendTitle").textContent =
+    `${studentName} – fejltyper pr. uge`;
+
+  $("errorRateTrendTitle").textContent =
+    `${studentName} – error rate pr. uge (${rateTrend})`;
+
+  const ctx1 = $("errorTrendChart").getContext("2d");
+  if (errorTrendChart) errorTrendChart.destroy();
+
+  errorTrendChart = new Chart(ctx1, {
+    type: "line",
+    data: {
+      labels: series.labels,
+      datasets: [
+        {
+          label: "Total fejl",
+          data: series.totalErrors,
+          tension: 0.2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
+    }
+  });
+
+  const ctx2 = $("errorTypeTrendChart").getContext("2d");
+  if (errorTypeTrendChart) errorTypeTrendChart.destroy();
+
+  errorTypeTrendChart = new Chart(ctx2, {
+    type: "line",
+    data: {
+      labels: series.labels,
+      datasets: [
+        {
+          label: "overseelse",
+          data: series.overseelse,
+          tension: 0.2
+        },
+        {
+          label: "fejltolkning",
+          data: series.fejltolkning,
+          tension: 0.2
+        },
+        {
+          label: "manglende samvittighedsfuldhed",
+          data: series.manglende,
+          tension: 0.2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
+    }
+  });
+
+  const ctx3 = $("errorRateTrendChart").getContext("2d");
+  if (errorRateTrendChart) errorRateTrendChart.destroy();
+
+  errorRateTrendChart = new Chart(ctx3, {
+    type: "line",
+    data: {
+      labels: series.labels,
+      datasets: [
+        {
+          label: "Errors per case",
+          data: series.errorRate,
+          tension: 0.2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+
+
 
 function initTopicSelect(){
   $("topicSelect").innerHTML = TOPICS.map(t => `<option value="${t}">${t}</option>`).join("");
@@ -1205,6 +1553,59 @@ async function importJSONToSupabase(){
   }
 }
 
+
+async function manualApproveTopic(topic){
+  try{
+    if (!lastStudentId) {
+      return msg("resMsg", "No student selected.", "error");
+    }
+
+    const reason = prompt(`Begrundelse for manuel godkendelse af "${topic}":`);
+    if (reason == null) return;
+    if (!reason.trim()) {
+      return msg("resMsg", "Begrundelse er påkrævet.", "error");
+    }
+
+   await dbUpsertManualApproval({
+  student_id: lastStudentId,
+  topic,
+  approved: true,
+  reason: reason.trim(),
+  approved_by: currentUser.id,
+  approved_by_email: currentUser.email,   // ← این مهمه
+  approved_at: new Date().toISOString()
+});
+
+    msg("resMsg", `Topic "${topic}" blev godkendt manuelt.`, "ok");
+    await showResults();
+  } catch(e){
+    msg("resMsg", e.message || String(e), "error");
+  }
+}
+
+
+async function removeManualApproval(topic){
+  try{
+    if (!canManualApproveTopics()){
+      return msg("resMsg", "Ingen adgang.", "error");
+    }
+
+    if (!lastStudentId){
+      return msg("resMsg", "No student selected.", "error");
+    }
+
+    const ok = confirm(`Fjern manuel godkendelse for "${topic}"?`);
+    if (!ok) return;
+
+    await dbDeleteManualApproval(lastStudentId, topic);
+
+    msg("resMsg", `Manuel godkendelse for "${topic}" blev fjernet.`, "ok");
+    await showResults();
+  } catch(e){
+    msg("resMsg", e.message || String(e), "error");
+  }
+}
+
 /* =========================
    SHOW RESULTS (MAIN)
 ========================= */
@@ -1226,7 +1627,14 @@ async function showResults(){
   lastStudentName = studentName;
 
   try{
-    const [students, evs] = await Promise.all([dbGetStudents(), dbGetEvals(studentId)]);
+    const [students, evs, approvals] = await Promise.all([
+  dbGetStudents(),
+  dbGetEvals(studentId),
+  dbGetManualApprovals(studentId)
+]);
+const manualApprovalMap = Object.fromEntries(
+  approvals.map(a => [a.topic, a])
+);
     const student = students.find(s => s.id === studentId);
     lastStudentObj = student || null;
     lastStudentLevel = student?.level || "Intro";
@@ -1247,8 +1655,9 @@ async function showResults(){
     renderTopic(studentName);
 
     // final evaluation + stats
-    const { thresholdPct, perTopic } = renderFinalEvaluation(student, evs);
-    renderStats(student, evs, thresholdPct, perTopic);
+    const { thresholdPct, perTopic } = renderFinalEvaluation(student, evs, manualApprovalMap);
+    renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap);
+    renderWeeklyErrorTrends(studentName, evs);
 
     msg("resMsg","OK","ok");
     $("btnCSV").disabled = false;
