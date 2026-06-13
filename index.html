@@ -358,6 +358,20 @@ canvas{
           </table>
           <p class="small muted">Grøn = opfyldt, Gul = tæt på (≤10% fra krav), Rød = ikke opfyldt.</p>
         </div>
+
+        <div style="margin-top:10px">
+          <h3 class="muted" style="margin:6px 0">Udvalgte emner × Anatomi</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Emne</th>
+                <th>Cerebrum</th>
+                <th>Columna</th>
+              </tr>
+            </thead>
+            <tbody id="tblTopicAnatomy"></tbody>
+          </table>
+        </div>
       </div>
 
       <!-- IMPORT -->
@@ -473,6 +487,20 @@ const TOPIC_REQUIREMENTS = {
   "Tumor": 15,
   "Bihuler": 15,
   "Øvrige": 15
+};
+
+const TOPIC_ANATOMY_MAP = {
+  "Vaskulære": ["cerebrum", "columna"],
+  "Vaskulære angiografi": ["cerebrum", "columna"],
+  "Traume/Traumefølge": ["cerebrum", "columna"],
+  "Hydrocefalus": ["cerebrum"],
+  "Demyeliniserende sygdom": ["cerebrum", "columna"],
+  "Neurodegenerativ": ["cerebrum", "columna"],
+  "Infektiøs & inflamatorisk": ["cerebrum", "columna"],
+  "Kongenit/normal variant": ["cerebrum", "columna"],
+  "Tumor": ["cerebrum", "columna"],
+  "Bihuler": ["cerebrum"],
+  "Øvrige": ["cerebrum", "columna"]
 };
 
 const ERROR_TYPES = [
@@ -735,20 +763,32 @@ async function dbGetManualApprovals(studentId){
 }
 
 async function dbUpsertManualApproval(payload){
+  // Manual approval is unique by student + topic + anatomy.
+  // We delete the existing row first so this works even before creating a DB unique constraint.
+  const del = await supabaseClient
+    .from("manual_topic_approvals")
+    .delete()
+    .eq("student_id", payload.student_id)
+    .eq("topic", payload.topic)
+    .eq("anatomy", payload.anatomy);
+
+  if (del.error) throw del.error;
+
   const { error } = await supabaseClient
     .from("manual_topic_approvals")
-    .upsert(payload, { onConflict: "student_id,topic" });
+    .insert(payload);
 
   if (error) throw error;
 }
 
 
-async function dbDeleteManualApproval(studentId, topic){
+async function dbDeleteManualApproval(studentId, topic, anatomyName){
   const { error } = await supabaseClient
     .from("manual_topic_approvals")
     .delete()
     .eq("student_id", studentId)
-    .eq("topic", topic);
+    .eq("topic", topic)
+    .eq("anatomy", anatomyName);
 
   if (error) throw error;
 }
@@ -1078,6 +1118,44 @@ function computeTopicStatus(topic, besEvents, thresholdPct){
   return { topic, total, req, pct, status };
 }
 
+function computeTopicAnatomyStatus(topic, anatomyName, besEvents, thresholdPct){
+  const req = TOPIC_REQUIREMENTS[topic] ?? 0;
+
+  const rows = besEvents.filter(e =>
+    (e.topics || []).includes(topic) &&
+    (e.anatomy || []).includes(anatomyName)
+  );
+
+  const { total, pct } = calcGoodPct(rows);
+
+  const okCount = total >= req;
+  const okPct = pct >= thresholdPct;
+
+  const nearCount = req > 0 ? total >= Math.ceil(req * (1 - NEAR_MARGIN/100)) : true;
+  const nearPct = pct >= (thresholdPct - NEAR_MARGIN);
+
+  let status = "Rød";
+  if (okCount && okPct) status = "Grøn";
+  else if ((nearCount && okPct) || (okCount && nearPct) || (nearCount && nearPct)) status = "Gul";
+
+  return { topic, anatomy: anatomyName, total, req, pct, status };
+}
+
+function buildTopicAnatomyStatuses(besEvents, thresholdPct){
+  const rows = [];
+  for (const topic of TOPICS){
+    const anatomyList = TOPIC_ANATOMY_MAP[topic] || ["cerebrum", "columna"];
+    for (const anatomyName of anatomyList){
+      rows.push(computeTopicAnatomyStatus(topic, anatomyName, besEvents, thresholdPct));
+    }
+  }
+  return rows;
+}
+
+function manualApprovalKey(topic, anatomyName){
+  return `${topic}|||${anatomyName}`;
+}
+
 function renderSummary(student, evs){
   const bes = evs.filter(e => e.eval_type === "beskrivelse");
   const { total, pct } = calcGoodPct(bes);
@@ -1104,41 +1182,28 @@ if (student?.competence_required){
 function renderFinalEvaluation(student, evs, manualApprovalMap){
   const level = (student?.level || "Intro");
   const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
-
   const bes = evs.filter(e => e.eval_type === "beskrivelse");
 
- 
-  const allTopicStatuses = TOPICS.map(t => computeTopicStatus(t, bes, thresholdPct));
+  const requiredTopicStatuses = buildTopicAnatomyStatuses(bes, thresholdPct)
+    .filter(x => (TOPIC_REQUIREMENTS[x.topic] ?? 0) > 0)
+    .map(x => {
+      const manual = manualApprovalMap?.[manualApprovalKey(x.topic, x.anatomy)];
+      if (manual?.approved) {
+        return { ...x, status: "Grøn", manuallyApproved: true };
+      }
+      return { ...x, manuallyApproved: false };
+    });
 
-
- const requiredTopicStatuses = allTopicStatuses
-  .filter(x => (TOPIC_REQUIREMENTS[x.topic] ?? 0) > 0)
-  .map(x => {
-    const manual = manualApprovalMap?.[x.topic];
-    if (manual?.approved) {
-      return { ...x, status: "Grøn", manuallyApproved: true };
-    }
-    return { ...x, manuallyApproved: false };
-  });
-
-  
   const pctValues = requiredTopicStatuses.map(x => x.pct);
   const averagePct = pctValues.length
     ? Math.round(pctValues.reduce((a,b) => a + b, 0) / pctValues.length)
     : 0;
 
-   
   const hasRed = requiredTopicStatuses.some(x => x.status === "Rød");
 
   let finalStatus = "Grøn";
-
-  if (hasRed) {
-    finalStatus = "Rød";
-  } else if (averagePct < thresholdPct) {
-    finalStatus = "Gul";
-  } else {
-    finalStatus = "Grøn";
-  }
+  if (hasRed) finalStatus = "Rød";
+  else if (averagePct < thresholdPct) finalStatus = "Gul";
 
   const box = $("finalBox");
   box.className = "callout " + (
@@ -1151,11 +1216,12 @@ function renderFinalEvaluation(student, evs, manualApprovalMap){
     <div style="margin-top:6px">
       <b>Niveau:</b> ${csvEscape(level)}<br/>
       <b>Krav 3+4:</b> ${thresholdPct}%<br/>
-      <b>Gennemsnit af emneprocenter:</b> ${averagePct}%
+      <b>Gennemsnit af emne/anatomi-procenter:</b> ${averagePct}%
     </div>
     <div class="small" style="margin-top:6px">
-      <b>Regel:</b> Hvis bare ét krævet emne er Rød, bliver den endelige vurdering Rød. 
-      Hvis ingen emner er Rød, vises slutstatus ud fra gennemsnittet af 3+4%-resultaterne.
+      <b>Regel:</b> Kompetence vurderes separat for relevante kombinationer af emne og anatomi.
+      Hvis bare én krævet kombination er Rød, bliver den endelige vurdering Rød.
+      Manuelle godkendelser tæller kun for den specifikke kombination, fx Tumor - cerebrum eller Tumor - columna.
     </div>
   `;
 
@@ -1174,7 +1240,6 @@ function renderFinalEvaluation(student, evs, manualApprovalMap){
 
 
 function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
-  // modality/anatomy/error counts based on beskrivelse only (for your stats)
   const bes = evs.filter(e => e.eval_type === "beskrivelse");
   const modalityCount = { CT:0, MR:0 };
   const anatomyCount = { cerebrum:0, columna:0 };
@@ -1205,7 +1270,6 @@ function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
     }
   }
 
-  // tables
   $("tblModality").innerHTML = `
     <tr><td>CT</td><td>${modalityCount.CT}</td></tr>
     <tr><td>MR</td><td>${modalityCount.MR}</td></tr>
@@ -1216,67 +1280,94 @@ function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
     <tr><td>columna</td><td>${anatomyCount.columna}</td></tr>
   `;
 
-  $("tblErrors").innerHTML = ERROR_TYPES.map(t => `<tr><td>${csvEscape(t)}</td><td>${errorsCount[t]||0}</td></tr>`).join("");
+  $("tblErrors").innerHTML = ERROR_TYPES.map(t =>
+    `<tr><td>${csvEscape(t)}</td><td>${errorsCount[t] || 0}</td></tr>`
+  ).join("");
 
   $("tblModAnat").innerHTML = `
     <tr><td><b>CT</b></td><td>${modAnat.CT.cerebrum}</td><td>${modAnat.CT.columna}</td></tr>
     <tr><td><b>MR</b></td><td>${modAnat.MR.cerebrum}</td><td>${modAnat.MR.columna}</td></tr>
   `;
 
-  // topic status table (required + show øvige too)
+  const topicAnatomyStatuses = buildTopicAnatomyStatuses(bes, thresholdPct);
 
-const allTopicStatuses = TOPICS.map(t => computeTopicStatus(t, bes, thresholdPct));
+  $("tblTopicStatus").innerHTML = topicAnatomyStatuses.map(x => {
+    const manual = manualApprovalMap?.[manualApprovalKey(x.topic, x.anatomy)] || null;
+    const isManualApproved = !!manual?.approved;
+    const shownStatus = isManualApproved ? "Grøn" : x.status;
+    const approvalText = isManualApproved ? "Godkendt manuelt" : "—";
 
-$("tblTopicStatus").innerHTML = allTopicStatuses.map(x => {
-  const manual = manualApprovalMap?.[x.topic] || null;
-  const isManualApproved = !!manual?.approved;
+    const approvedInfo = isManualApproved
+      ? `
+        <div>${csvEscape(manual.reason || "")}</div>
+        <div class="small muted">
+          ${csvEscape(manual.approved_by_email || "")}
+          ${manual.approved_at ? " · " + csvEscape(new Date(manual.approved_at).toLocaleString()) : ""}
+        </div>
+      `
+      : "—";
 
-  const shownStatus = isManualApproved ? "Grøn" : x.status;
-
-  const approvalText = isManualApproved ? "Godkendt manuelt" : "—";
-
-  const approvedInfo = isManualApproved
-    ? `
-      <div>${csvEscape(manual.reason || "")}</div>
-      <div class="small muted">
-        ${csvEscape(manual.approved_by_email || "")}
-        ${manual.approved_at ? " · " + csvEscape(new Date(manual.approved_at).toLocaleString()) : ""}
-      </div>
-    `
-    : "—";
-
-  let actionHtml = "—";
-  if (canManualApproveTopics()){
-    if (isManualApproved){
-      actionHtml = `
-        <button type="button" class="btn-danger" onclick="removeManualApproval('${x.topic}')">
-          Fjern godkendelse
-        </button>
-      `;
-    } else {
-      actionHtml = `
-        <button type="button" class="btn-secondary" onclick="manualApproveTopic('${x.topic}')">
-          Godkend manuelt
-        </button>
-      `;
+    let actionHtml = "—";
+    if (canManualApproveTopics()){
+      if (isManualApproved){
+        actionHtml = `
+          <button type="button" class="btn-danger" onclick="removeManualApproval('${x.topic}', '${x.anatomy}')">
+            Fjern godkendelse
+          </button>
+        `;
+      } else {
+        actionHtml = `
+          <button type="button" class="btn-secondary" onclick="manualApproveTopic('${x.topic}', '${x.anatomy}')">
+            Godkend manuelt
+          </button>
+        `;
+      }
     }
-  }
 
-  return `
-    <tr>
-      <td>${csvEscape(x.topic)}</td>
-      <td>${x.total}</td>
-      <td>${x.req}</td>
-      <td>${x.pct}%</td>
-      <td>${statusChip(shownStatus)}</td>
-      <td>${approvalText}</td>
-      <td>${approvedInfo}</td>
-      <td>${actionHtml}</td>
-    </tr>
-  `;
-}).join("");
+    return `
+      <tr>
+        <td>${csvEscape(x.topic)} - ${csvEscape(x.anatomy)}</td>
+        <td>${x.total}</td>
+        <td>${x.req}</td>
+        <td>${x.pct}%</td>
+        <td>${statusChip(shownStatus)}</td>
+        <td>${approvalText}</td>
+        <td>${approvedInfo}</td>
+        <td>${actionHtml}</td>
+      </tr>
+    `;
+  }).join("");
 
+  const SELECTED_TOPIC_ANATOMY = [
+    "Vaskulære",
+    "Traume/Traumefølge",
+    "Demyeliniserende sygdom",
+    "Neurodegenerativ",
+    "Infektiøs & inflamatorisk",
+    "Kongenit/normal variant",
+    "Tumor"
+  ];
 
+  $("tblTopicAnatomy").innerHTML = SELECTED_TOPIC_ANATOMY.map(topic => {
+    let cerebrum = 0;
+    let columna = 0;
+
+    for (const e of bes){
+      const topics = e.topics || [];
+      const anatomy = e.anatomy || [];
+      if (!topics.includes(topic)) continue;
+      if (anatomy.includes("cerebrum")) cerebrum++;
+      if (anatomy.includes("columna")) columna++;
+    }
+
+    return `
+      <tr>
+        <td>${csvEscape(topic)}</td>
+        <td>${cerebrum}</td>
+        <td>${columna}</td>
+      </tr>
+    `;
+  }).join("");
 
   show($("statsCard"), true);
 }
@@ -1312,33 +1403,42 @@ function renderTopic(studentName){
   const rows = lastTimeseries.filter(r => r.topic === topic);
 
   show($("topicCard"), true);
-  $("topicTitle").textContent = `${studentName} – ${topic} (gennemsnit pr. dato)`;
+  $("topicTitle").textContent = `${studentName} – ${topic} (Cerebrum vs Columna)`;
 
   const ctx = $("topicChart").getContext("2d");
   if (topicChart) topicChart.destroy();
 
-  if (!rows.length){
-    topicChart = new Chart(ctx, {
-      type: "line",
-      data: { labels: [], datasets: [{ data: [] }] },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } }
-      }
-    });
-    return;
-  }
+  const cereRows = rows.filter(r => (r.anatomy || []).includes("cerebrum"));
+  const colRows = rows.filter(r => (r.anatomy || []).includes("columna"));
 
-  const { labels, values } = groupByDateAvg(rows);
+  const cereData = groupByDateAvg(cereRows);
+  const colData = groupByDateAvg(colRows);
+
+  const labels = [...new Set([...cereData.labels, ...colData.labels])].sort();
+
+  const cereMap = {};
+  cereData.labels.forEach((d, i) => { cereMap[d] = cereData.values[i]; });
+
+  const colMap = {};
+  colData.labels.forEach((d, i) => { colMap[d] = colData.values[i]; });
+
+  const cereValues = labels.map(d => cereMap[d] ?? null);
+  const colValues = labels.map(d => colMap[d] ?? null);
+
   topicChart = new Chart(ctx, {
     type: "line",
-    data: { labels, datasets: [{ data: values, tension: 0.2 }] },
+    data: {
+      labels,
+      datasets: [
+        { label: "Cerebrum", data: cereValues, tension: 0.2 },
+        { label: "Columna", data: colValues, tension: 0.2 }
+      ]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: { y: { min: 1, max: 4, ticks: { stepSize: 1 } } },
-      plugins: { legend: { display: false } }
+      plugins: { legend: { display: true } }
     }
   });
 }
@@ -1554,29 +1654,30 @@ async function importJSONToSupabase(){
 }
 
 
-async function manualApproveTopic(topic){
+async function manualApproveTopic(topic, anatomyName){
   try{
     if (!lastStudentId) {
       return msg("resMsg", "No student selected.", "error");
     }
 
-    const reason = prompt(`Begrundelse for manuel godkendelse af "${topic}":`);
+    const reason = prompt(`Begrundelse for manuel godkendelse af "${topic}" - ${anatomyName}:`);
     if (reason == null) return;
     if (!reason.trim()) {
       return msg("resMsg", "Begrundelse er påkrævet.", "error");
     }
 
-   await dbUpsertManualApproval({
-  student_id: lastStudentId,
-  topic,
-  approved: true,
-  reason: reason.trim(),
-  approved_by: currentUser.id,
-  approved_by_email: currentUser.email,   // ← این مهمه
-  approved_at: new Date().toISOString()
-});
+    await dbUpsertManualApproval({
+      student_id: lastStudentId,
+      topic,
+      anatomy: anatomyName,
+      approved: true,
+      reason: reason.trim(),
+      approved_by: currentUser.id,
+      approved_by_email: currentUser.email,
+      approved_at: new Date().toISOString()
+    });
 
-    msg("resMsg", `Topic "${topic}" blev godkendt manuelt.`, "ok");
+    msg("resMsg", `"${topic}" - ${anatomyName} blev godkendt manuelt.`, "ok");
     await showResults();
   } catch(e){
     msg("resMsg", e.message || String(e), "error");
@@ -1584,7 +1685,7 @@ async function manualApproveTopic(topic){
 }
 
 
-async function removeManualApproval(topic){
+async function removeManualApproval(topic, anatomyName){
   try{
     if (!canManualApproveTopics()){
       return msg("resMsg", "Ingen adgang.", "error");
@@ -1594,12 +1695,12 @@ async function removeManualApproval(topic){
       return msg("resMsg", "No student selected.", "error");
     }
 
-    const ok = confirm(`Fjern manuel godkendelse for "${topic}"?`);
+    const ok = confirm(`Fjern manuel godkendelse for "${topic}" - ${anatomyName}?`);
     if (!ok) return;
 
-    await dbDeleteManualApproval(lastStudentId, topic);
+    await dbDeleteManualApproval(lastStudentId, topic, anatomyName);
 
-    msg("resMsg", `Manuel godkendelse for "${topic}" blev fjernet.`, "ok");
+    msg("resMsg", `Manuel godkendelse for "${topic}" - ${anatomyName} blev fjernet.`, "ok");
     await showResults();
   } catch(e){
     msg("resMsg", e.message || String(e), "error");
@@ -1633,7 +1734,9 @@ async function showResults(){
   dbGetManualApprovals(studentId)
 ]);
 const manualApprovalMap = Object.fromEntries(
-  approvals.map(a => [a.topic, a])
+  approvals
+    .filter(a => a.anatomy)
+    .map(a => [manualApprovalKey(a.topic, a.anatomy), a])
 );
     const student = students.find(s => s.id === studentId);
     lastStudentObj = student || null;
