@@ -6,6 +6,7 @@
   <title>Neuroradiologi –Online Evaluering</title>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
@@ -325,6 +326,11 @@ canvas{
 <div>
 <button type="button" id="btnCSV" disabled>Download CSV</button>
 </div>
+
+<button type="button" class="btn-secondary" id="btnPDF" disabled>
+  Download Competency Report
+</button>
+
       </div>
 
       <p id="resMsg" class="small"></p>
@@ -340,7 +346,23 @@ canvas{
 </div>
 
 
+<div class="card" id="auditLogCard" style="display:none">
+  <h3>Audit log</h3>
 
+  <table>
+    <thead>
+      <tr>
+        <th>Dato</th>
+        <th>Handling</th>
+        <th>Kompetence</th>
+        <th>Bruger</th>
+        <th>Begrundelse</th>
+      </tr>
+    </thead>
+
+    <tbody id="auditLogBody"></tbody>
+  </table>
+</div>
 
 
       <!-- STATISTICS -->
@@ -867,6 +889,14 @@ async function dbUpsertManualApproval(payload){
 }
 
 
+async function dbInsertAuditLog(payload){
+  const { error } = await supabaseClient
+    .from("audit_logs")
+    .insert(payload);
+
+  if (error) throw error;
+}
+
 async function dbDeleteManualApproval(studentId, topic, anatomyName){
   const { error } = await supabaseClient
     .from("manual_topic_approvals")
@@ -878,7 +908,16 @@ async function dbDeleteManualApproval(studentId, topic, anatomyName){
   if (error) throw error;
 }
 
+async function dbGetAuditLogs(studentId){
+  const { data, error } = await supabaseClient
+    .from("audit_logs")
+    .select("*")
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false });
 
+  if (error) throw error;
+  return data || [];
+}
 
 
 /* =========================
@@ -1689,6 +1728,215 @@ function initTopicSelect(){
 }
 
 /* CSV download (student + evals) */
+async function loadImageAsDataURL(url){
+  const res = await fetch(url);
+  const blob = await res.blob();
+
+  return await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+async function downloadCompetencyReport(){
+  if (!lastStudentId || !lastStudentObj) {
+    return msg("resMsg", "Vælg en studerende først.", "error");
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+const hospitalLogo = await loadImageAsDataURL("Bispebjerg.sumo_.png");
+
+doc.addImage(
+  hospitalLogo,
+  "PNG",
+  14,
+  10,
+  55,
+  25
+);
+
+function addPdfHeaderFooter(title){
+  const pageCount = doc.internal.getNumberOfPages();
+
+  doc.setFontSize(10);
+  doc.text("Neuroradiologi – Kompetenceevaluering", 14, 10);
+
+  doc.setFontSize(8);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 286);
+
+  doc.text(`Page ${pageCount}`, 180, 286);
+}
+
+  const student = lastStudentObj;
+  const evs = lastEvals || [];
+  const bes = evs.filter(e => e.eval_type === "beskrivelse");
+
+  const level = student.level || "Intro";
+  const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
+
+  const good = bes.filter(e =>
+    e.clinical_scale === 3 || e.clinical_scale === 4
+  ).length;
+
+  const pct = bes.length
+    ? Math.round((good / bes.length) * 100)
+    : 0;
+
+  doc.setFontSize(16);
+ doc.text("Neuroradiologi Competency Report", 75, 22);
+
+  doc.setFontSize(11);
+  doc.text(`Studerende: ${student.name || ""}`, 14, 32);
+  doc.text(`Niveau: ${level}`, 14, 40);
+  doc.text(`Startdato: ${student.start_date || ""}`, 14, 48);
+  doc.text(`Forventet slutdato: ${student.expected_end_date || ""}`, 14, 56);
+  doc.text(`Rapportdato: ${new Date().toLocaleDateString()}`, 14, 64);
+
+  doc.text(`Antal beskrivelser: ${bes.length}`, 14, 78);
+  doc.text(`3+4 procent: ${pct}%`, 14, 86);
+  doc.text(`Krav 3+4: ${thresholdPct}%`, 14, 94);
+
+let y = 110;
+
+doc.setFontSize(13);
+doc.text("Competence status", 14, y);
+y += 8;
+
+doc.setFontSize(9);
+
+const approvals = await dbGetManualApprovals(lastStudentId);
+const manualApprovalMap = Object.fromEntries(
+  approvals.map(a => [manualApprovalKey(a.topic, a.anatomy), a])
+);
+
+const requiredCompetencies = getRequiredCompetenciesForLevel(level);
+
+for (const c of requiredCompetencies) {
+  const st = computeTopicAnatomyStatus(
+    c.topic,
+    c.anatomy,
+    bes,
+    thresholdPct
+  );
+
+  const manual = manualApprovalMap?.[manualApprovalKey(c.topic, c.anatomy)];
+  const shownStatus = manual?.approved ? "Grøn (manual)" : st.status;
+
+  if (y > 275) {
+    doc.addPage();
+    y = 20;
+  }
+
+  doc.text(
+    `${c.topic} - ${c.anatomy}: ${shownStatus} | Antal: ${st.total} | 3+4: ${st.pct}%`,
+    14,
+    y
+  );
+
+  y += 7;
+}
+
+
+if (overallChart) {
+  if (y > 180) {
+    doc.addPage();
+    y = 20;
+  }
+
+  doc.setFontSize(13);
+  doc.text("Overall progress", 14, y);
+  y += 8;
+
+  const img = overallChart.toBase64Image();
+
+  doc.addImage(img, "PNG", 14, y, 180, 80);
+  y += 90;
+}
+
+const logs = await dbGetAuditLogs(lastStudentId);
+
+
+
+
+if (logs.length) {
+  doc.addPage();
+
+  let auditY = 20;
+
+  doc.setFontSize(16);
+  doc.text("Audit Log", 14, auditY);
+
+  auditY += 12;
+
+  doc.setFontSize(9);
+
+  for (const log of logs) {
+    if (auditY > 260) {
+      doc.addPage();
+      auditY = 20;
+    }
+
+    const actionText =
+      log.action === "manual_approval_added"
+        ? "Manual approval added"
+        : log.action === "manual_approval_removed"
+          ? "Manual approval removed"
+          : log.action;
+
+    doc.text(
+      `${new Date(log.created_at).toLocaleString()}`,
+      14,
+      auditY
+    );
+    auditY += 6;
+
+    doc.text(
+      `${actionText}`,
+      14,
+      auditY
+    );
+    auditY += 6;
+
+    doc.text(
+      `${log.topic || ""} - ${log.anatomy || ""}`,
+      14,
+      auditY
+    );
+    auditY += 6;
+
+    doc.text(
+      `By: ${log.performed_by_email || ""}`,
+      14,
+      auditY
+    );
+    auditY += 6;
+
+    if (log.reason) {
+      doc.text(
+        `Reason: ${log.reason}`,
+        14,
+        auditY
+      );
+      auditY += 6;
+    }
+
+    auditY += 4;
+  }
+}
+
+const totalPages = doc.internal.getNumberOfPages();
+
+for (let i = 1; i <= totalPages; i++) {
+  doc.setPage(i);
+  addPdfHeaderFooter();
+}
+
+  doc.save(
+    `competency_report_${(student.name || "student").replace(/\s+/g, "_")}_${todayISO()}.pdf`
+  );
+}
 function downloadCSV(){
   if (!lastStudentId) return;
   const student = lastStudentObj || null;
@@ -1816,6 +2064,27 @@ async function manualApproveTopic(topic, anatomyName){
       approved_at: new Date().toISOString()
     });
 
+console.log("Trying to insert audit log", {
+  student_id: lastStudentId,
+  action: "manual_approval_added",
+  topic,
+  anatomy: anatomyName,
+  reason: reason.trim(),
+  performed_by: currentUser.id,
+  performed_by_email: currentUser.email
+});
+
+await dbInsertAuditLog({
+  student_id: lastStudentId,
+  action: "manual_approval_added",
+  topic,
+  anatomy: anatomyName,
+  reason: reason.trim(),
+  performed_by: currentUser.id,
+  performed_by_email: currentUser.email
+});
+
+console.log("Audit log inserted OK");
     msg("resMsg", `"${topic}" - ${anatomyName} blev godkendt manuelt.`, "ok");
     await showResults();
   } catch(e){
@@ -1838,6 +2107,16 @@ async function removeManualApproval(topic, anatomyName){
     if (!ok) return;
 
     await dbDeleteManualApproval(lastStudentId, topic, anatomyName);
+
+await dbInsertAuditLog({
+  student_id: lastStudentId,
+  action: "manual_approval_removed",
+  topic,
+  anatomy: anatomyName,
+  reason: "",
+  performed_by: currentUser.id,
+  performed_by_email: currentUser.email
+});
 
     msg("resMsg", `Manuel godkendelse for "${topic}" - ${anatomyName} blev fjernet.`, "ok");
     await showResults();
@@ -1950,10 +2229,49 @@ async function openStudentResults(studentId){
   });
 }
 
+
+async function renderAuditLog(studentId){
+  const logs = await dbGetAuditLogs(studentId);
+console.log("SCREEN audit studentId:", studentId, logs);
+
+  show($("auditLogCard"), true);
+
+  if (!logs.length){
+    $("auditLogBody").innerHTML = `
+      <tr>
+        <td colspan="5">Ingen audit log endnu</td>
+      </tr>
+    `;
+    return;
+  }
+
+  $("auditLogBody").innerHTML = logs.map(log => {
+    const actionText =
+      log.action === "manual_approval_added"
+        ? "Manuel godkendelse tilføjet"
+        : log.action === "manual_approval_removed"
+          ? "Manuel godkendelse fjernet"
+          : log.action;
+
+    return `
+      <tr>
+        <td>${csvEscape(new Date(log.created_at).toLocaleString())}</td>
+        <td>${csvEscape(actionText)}</td>
+        <td>${csvEscape(log.topic || "")} - ${csvEscape(log.anatomy || "")}</td>
+        <td>${csvEscape(log.performed_by_email || "")}</td>
+        <td>${csvEscape(log.reason || "")}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
 async function showResults(){
   msg("resMsg","");
   hideCharts();
   show($("finalCard"), false);
+
+
+
   show($("statsCard"), false);
 
   const opt = $("studentSelectResults").selectedOptions[0];
@@ -1987,6 +2305,7 @@ const manualApprovalMap = Object.fromEntries(
 
     // data table
     renderDataTable(evs);
+await renderAuditLog(studentId);
 
     // charts time series
     lastTimeseries = buildTimeseriesForStudent(evs);
@@ -2003,6 +2322,7 @@ const manualApprovalMap = Object.fromEntries(
 
     msg("resMsg","OK","ok");
     $("btnCSV").disabled = false;
+$("btnPDF").disabled = false;
   } catch(e){
     msg("resMsg", e.message || String(e), "error");
   }
@@ -2160,8 +2480,10 @@ $("btnDeleteSelected").addEventListener("click", deleteSelectedEval);
  $("btnImportJSON").addEventListener("click", importJSONToSupabase);
 $("btnExportJSON").addEventListener("click", exportJSONBackup);
 $("btnCSV").addEventListener("click", downloadCSV);
+$("btnPDF").addEventListener("click", downloadCompetencyReport);
 
   $("btnCSV").disabled = true;
+$("btnPDF").disabled = true;
 }
 boot();
 </script>
