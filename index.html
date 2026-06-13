@@ -2067,12 +2067,22 @@ if (isCompleted) {
     y = 20;
   }
 
+	if (shownStatus.includes("Grøn")) {
+  doc.setTextColor(0, 140, 0);      // Green
+}
+else if (shownStatus.includes("Gul")) {
+  doc.setTextColor(220, 140, 0);    // Orange
+}
+else {
+  doc.setTextColor(180, 0, 0);      // Red
+}
   doc.text(
+	  
     `${c.topic} - ${c.anatomy}: ${shownStatus} | Antal: ${st.total} | 3+4: ${st.pct}%`,
     14,
     y
   );
-
+doc.setTextColor(0, 0, 0);
   y += 7;
 }
 
