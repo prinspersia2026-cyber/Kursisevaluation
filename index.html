@@ -1813,6 +1813,9 @@ const manualApprovalMap = Object.fromEntries(
 
 const requiredCompetencies = getRequiredCompetenciesForLevel(level);
 
+let completed = 0;
+const missing = [];
+
 for (const c of requiredCompetencies) {
   const st = computeTopicAnatomyStatus(
     c.topic,
@@ -1823,6 +1826,15 @@ for (const c of requiredCompetencies) {
 
   const manual = manualApprovalMap?.[manualApprovalKey(c.topic, c.anatomy)];
   const shownStatus = manual?.approved ? "Grøn (manual)" : st.status;
+
+	const isCompleted = manual?.approved || st.status === "Grøn";
+
+if (isCompleted) {
+  completed++;
+} else {
+  missing.push(`${c.topic} - ${c.anatomy}`);
+}
+	
 
   if (y > 275) {
     doc.addPage();
@@ -1838,6 +1850,11 @@ for (const c of requiredCompetencies) {
   y += 7;
 }
 
+	let finalStatus = "GRØN";
+
+if (missing.length > 0) {
+  finalStatus = "RØD";
+}
 
 if (overallChart) {
   if (y > 180) {
