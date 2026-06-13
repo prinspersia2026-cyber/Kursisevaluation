@@ -1746,6 +1746,19 @@ async function downloadCompetencyReport(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
+	function addChartToPdf(chart, title){
+  if (!chart) return;
+
+  doc.addPage();
+
+  doc.setFontSize(14);
+  doc.text(title, 14, 20);
+
+  const img = chart.toBase64Image();
+
+  doc.addImage(img, "PNG", 14, 30, 180, 85);
+}
+
 const hospitalLogo = await loadImageAsDataURL("Bispebjerg.sumo_.png");
 
 doc.addImage(
@@ -1905,22 +1918,12 @@ doc.text(
 doc.setPage(doc.internal.getNumberOfPages());	
 
 
-	
-if (overallChart) {
-  if (y > 180) {
-    doc.addPage();
-    y = 20;
-  }
+addChartToPdf(overallChart, "Overall progress");
+addChartToPdf(topicChart, "Progress pr. emne");
+addChartToPdf(errorTrendChart, "Fejltrend pr. uge");
+addChartToPdf(errorTypeTrendChart, "Fejltyper pr. uge");
+addChartToPdf(errorRateTrendChart, "Error rate pr. uge");
 
-  doc.setFontSize(13);
-  doc.text("Overall progress", 14, y);
-  y += 8;
-
-  const img = overallChart.toBase64Image();
-
-  doc.addImage(img, "PNG", 14, y, 180, 80);
-  y += 90;
-}
 
 const logs = await dbGetAuditLogs(lastStudentId);
 
