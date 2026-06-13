@@ -303,6 +303,23 @@ th{
   width:18px;
   height:18px;
 }
+
+	 /* ===== FIX CHART HEIGHT GROWING BUG ===== */
+
+.chart-card{
+  position:relative !important;
+  height:360px !important;
+  max-height:360px !important;
+  min-height:360px !important;
+  overflow:hidden !important;
+}
+
+.chart-card canvas{
+  display:block !important;
+  width:100% !important;
+  height:300px !important;
+  max-height:300px !important;
+}
 </style>
 </head>
 
