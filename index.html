@@ -9,58 +9,132 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:1200px;margin:18px auto;padding:12px;line-height:1.45}
-    h1{margin:0 0 10px;font-size:22px}
-    h2{margin:0 0 8px;font-size:18px}
-    h3{margin:0 0 8px;font-size:15px}
-    .card{border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-    label{font-size:12px;color:#555}
-    input,select,button{padding:8px 10px;border:1px solid #bbb;border-radius:10px;font-size:14px}
-    button{cursor:pointer}
-    .small{font-size:12px;color:#666;margin-top:6px}
-    .error{color:#b00020;font-size:13px}
-    .ok{color:#0a7a0a;font-size:13px}
-    hr{border:none;border-top:1px solid #eee;margin:12px 0}
-    .pill{display:inline-block;padding:2px 10px;border:1px solid #ddd;border-radius:999px;font-size:12px;margin:4px 6px 0 0;background:#fff}
-    .pill.ok{border-color:#8bd98b;background:#f2fff2}
-    .pill.warn{border-color:#ffd27a;background:#fff8e8}
-    .pill.bad{border-color:#ff9aa0;background:#fff0f0}
-
-    .chart-card{border:1px solid #ddd;border-radius:12px;padding:10px}
-    .chart-title{font-weight:650;margin:0 0 8px;font-size:13px}
-    .chart-card{
-  border:1px solid #ddd;
-  border-radius:12px;
-  padding:10px;
-  position:relative;
-  height:320px;          
-}
-canvas{
-  width:100% !important;
-  height:100% !important; 
+ <style>
+body{
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  max-width:1200px;
+  margin:18px auto;
+  padding:12px;
+  line-height:1.45;
+  color:#172033;
+  background:
+    linear-gradient(rgba(255,255,255,.86),rgba(255,255,255,.94)),
+    url("Bispebjerg.sumo_.png") center 90px / 420px auto no-repeat fixed;
 }
 
-    table{border-collapse:collapse;width:100%}
-    th,td{border-bottom:1px solid #eee;padding:6px 8px;font-size:12px;text-align:left;vertical-align:top}
-    th{font-weight:650;background:#fafafa}
+h1{
+  margin:0 0 16px;
+  font-size:28px;
+  font-weight:800;
+  color:#102a43;
+  text-shadow:0 2px 8px rgba(255,255,255,.9);
+}
 
-    .chkgroup{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .chk{display:flex;gap:6px;align-items:center;border:1px solid #ddd;border-radius:999px;padding:4px 10px;background:#fff}
-    .chk input{accent-color:#111}
+h2{margin:0 0 12px;font-size:20px;color:#102a43}
+h3{margin:0 0 10px;font-size:16px;color:#243b53}
 
-    .btn-primary{background:#111;color:#fff;border-color:#111}
-    .btn-secondary{background:#fafafa}
-    .btn-danger{background:#fff0f0;border-color:#ffb3b3}
-    .muted{color:#777}
+.card{
+  border:1px solid rgba(255,255,255,.6);
+  border-radius:22px;
+  padding:18px;
+  margin:16px 0;
+  background:rgba(255,255,255,.84);
+  backdrop-filter:blur(14px);
+  box-shadow:
+    0 18px 40px rgba(20,40,80,.14),
+    inset 0 1px 0 rgba(255,255,255,.8);
+}
 
-    .callout{border-radius:12px;padding:12px;border:1px solid #ddd}
-    .callout.ok{background:#f2fff2;border-color:#8bd98b}
-    .callout.warn{background:#fff8e8;border-color:#ffd27a}
-    .callout.bad{background:#fff0f0;border-color:#ff9aa0}
-    .callout-title{font-weight:750;margin-bottom:6px}
-  </style>
+.row{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:flex-end;
+}
+
+label{
+  font-size:12px;
+  color:#52616b;
+  font-weight:650;
+}
+
+input,select{
+  padding:10px 12px;
+  border:1px solid #d7dce8;
+  border-radius:14px;
+  font-size:14px;
+  background:rgba(255,255,255,.96);
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.05);
+}
+
+input:focus,select:focus{
+  outline:none;
+  border-color:#00aaff;
+  box-shadow:0 0 0 4px rgba(0,170,255,.16);
+}
+
+button{
+  cursor:pointer;
+  padding:10px 16px;
+  border:0;
+  border-radius:15px;
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.2px;
+  transition:.16s ease;
+  box-shadow:0 6px 0 rgba(0,0,0,.18),0 14px 24px rgba(0,0,0,.14);
+}
+
+button:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 0 rgba(0,0,0,.18),0 18px 30px rgba(0,0,0,.18);
+}
+
+button:active{
+  transform:translateY(4px);
+  box-shadow:0 2px 0 rgba(0,0,0,.18),0 7px 14px rgba(0,0,0,.14);
+}
+
+.btn-primary{
+  background:linear-gradient(135deg,#0077ff,#00c6ff);
+  color:white;
+}
+
+.btn-secondary{
+  background:linear-gradient(135deg,#ffffff,#dbeafe);
+  color:#172033;
+}
+
+.btn-danger{
+  background:linear-gradient(135deg,#ff4d6d,#ff8a00);
+  color:white;
+}
+
+.small{font-size:12px;color:#667085;margin-top:6px}
+.error{color:#b00020;font-size:13px;font-weight:700}
+.ok{color:#0a7a0a;font-size:13px;font-weight:700}
+
+hr{
+  border:none;
+  border-top:1px solid rgba(0,0,0,.08);
+  margin:16px 0;
+}
+
+.pill{
+  display:inline-block;
+  padding:5px 12px;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:999px;
+  font-size:12px;
+  margin:4px 6px 0 0;
+  background:rgba(255,255,255,.9);
+  box-shadow:0 4px 10px rgba(0,0,0,.06);
+}
+
+.pill.ok{border-color:#8bd98b;background:#f2fff2}
+.pill.warn{border-color:#ffd27a;background:#fff8e8}
+.pill.bad{border-color:#ff9aa0;background:#fff0f0}
+</style>
 </head>
 
 <body>
