@@ -745,7 +745,7 @@ async function forgotPassword(){
   }
 
   const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-    redirectTo: "http://127.0.0.1:5500/b.html"
+    redirectTo: "https://kursisevaluation-bnb7.vercel.app/"
   });
 
   if (error) {
