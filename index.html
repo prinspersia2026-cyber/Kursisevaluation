@@ -745,7 +745,7 @@ async function forgotPassword(){
   }
 
   const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin + window.location.pathname
+    redirectTo: "http://127.0.0.1:5500/b.html"
   });
 
   if (error) {
