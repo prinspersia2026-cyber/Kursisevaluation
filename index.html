@@ -1798,6 +1798,45 @@ doc.text(`Rapportdato: ${new Date().toLocaleDateString()}`, 14, 80);
 doc.text(`3+4 procent: ${pct}%`, 14, 102);
 doc.text(`Krav 3+4: ${thresholdPct}%`, 14, 110);
 
+	doc.setFontSize(13);
+doc.text("Executive Summary", 110, 48);
+
+doc.setFontSize(10);
+
+doc.text(
+  `Completed competencies: ${completed}/${requiredCompetencies.length}`,
+  110,
+  58
+);
+
+doc.text(
+  `Performance: ${pct}%`,
+  110,
+  66
+);
+
+doc.text(
+  `Required threshold: ${thresholdPct}%`,
+  110,
+  74
+);
+
+doc.setFontSize(14);
+
+doc.text(
+  `STATUS: ${finalStatus}`,
+  110,
+  88
+);
+
+doc.setFontSize(10);
+
+doc.text(
+  `Missing competencies: ${missing.length}`,
+  110,
+  100
+);
+
 let y = 126;
 
 doc.setFontSize(13);
