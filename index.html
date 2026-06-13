@@ -69,18 +69,35 @@ canvas{
   <!-- LOGIN -->
   <div class="card" id="loginCard">
     <h2>Login</h2>
+
     <div class="row">
       <div>
         <label>Email</label><br/>
         <input type="email" id="loginEmail" autocomplete="username" />
       </div>
-      <div>
-        <label>Password</label><br/>
-        <input type="password" id="loginPassword" autocomplete="current-password" />
-      </div>
-      <div>
-        <button type="button" class="btn-primary" id="btnLogin">Login</button>
-      </div>
+      <div class="row">
+
+  <div>
+    <label>Password</label><br/>
+    <input type="password" id="loginPassword" />
+  </div>
+
+  <div>
+    <button type="button"
+            class="btn-primary"
+            id="btnLogin">
+      Login
+    </button>
+  </div>
+
+  <div>
+    <button type="button"
+            class="btn-secondary"
+            id="btnForgotPassword">
+      Glemt adgangskode?
+    </button>
+  </div>
+</div>
     </div>
     <p id="loginMsg" class="small"></p>
   </div>
@@ -110,6 +127,27 @@ canvas{
       </div>
       <p id="pwMsg" class="small"></p>
     </div>
+
+
+<!-- DASHBOARD -->
+<div class="card" id="dashboardCard" style="display:none">
+  <h3>Dashboard</h3>
+
+  <div id="dashboardSummary" class="row"></div>
+
+  <table style="margin-top:10px">
+    <thead>
+      <tr>
+        <th>Studerende</th>
+        <th>Niveau</th>
+        <th>Status</th>
+        <th>Beskrivelser</th>
+        <th>3+4 (%)</th>
+      </tr>
+    </thead>
+    <tbody id="dashboardBody"></tbody>
+  </table>
+</div>
 
     <!-- STUDENTS -->
     <div class="card" id="studentsCard">
@@ -294,12 +332,16 @@ canvas{
       <div id="summaryPills"></div>
 
       <!-- FINAL EVALUATION -->
-      <div class="card" id="finalCard" style="display:none">
-        <div id="finalBox" class="callout">
-          <div class="callout-title">Endelig vurdering</div>
-          <div id="finalText" class="small"></div>
-        </div>
-      </div>
+<div class="card" id="finalCard" style="display:none">
+  <div id="finalBox" class="callout">
+    <div class="callout-title">Endelig vurdering</div>
+    <div id="finalText" class="small"></div>
+  </div>
+</div>
+
+
+
+
 
       <!-- STATISTICS -->
       <div class="card" id="statsCard" style="display:none">
@@ -349,6 +391,7 @@ canvas{
   		<th>Krav</th>
   		<th>3+4 (%)</th>
   		<th>Status</th>
+                <th>Krav for niveau</th>
  		 <th>Manuel godkendelse</th>
   		<th>Begrundelse</th>
   		<th>Handling</th>
@@ -475,6 +518,8 @@ const TOPICS = [
   "Øvrige"
 ];
 
+
+
 const TOPIC_REQUIREMENTS = {
   "Vaskulære": 50,
   "Vaskulære angiografi": 50,
@@ -487,6 +532,23 @@ const TOPIC_REQUIREMENTS = {
   "Tumor": 15,
   "Bihuler": 15,
   "Øvrige": 15
+};
+
+
+const REQUIRED_COMPETENCIES_BY_LEVEL = {
+  Intro: [
+    { topic: "Vaskulære", anatomy: "cerebrum" },
+    { topic: "Traume/Traumefølge", anatomy: "cerebrum" },
+    { topic: "Traume/Traumefølge", anatomy: "columna" },
+    { topic: "Hydrocefalus", anatomy: "cerebrum" },
+    { topic: "Tumor", anatomy: "cerebrum" },
+    { topic: "Infektiøs & inflamatorisk", anatomy: "cerebrum" }
+  ],
+
+  HU1: "ALL",
+  HU2: "ALL",
+  HU3: "ALL",
+  HU4: "ALL"
 };
 
 const TOPIC_ANATOMY_MAP = {
@@ -631,6 +693,7 @@ function updateUIByRole(){
     `Results: ${canSeeResults() ? "YES" : "NO"}`;
 
   show($("studentsCard"), canManageStudents());
+show($("dashboardCard"), canSeeResults());
   show($("evaluationCard"), canInsertEval());
   show($("resultsCard"), canSeeResults());
   show($("importCard"), canImport());
@@ -667,9 +730,31 @@ await supabaseClient.auth.setSession({
 await loadUserRole();
 updateUIByRole();
 await refreshStudentsIntoSelects();
+if (canSeeResults()) await renderDashboard();
 
   msg("loginMsg","Login OK","ok");
 }
+
+
+async function forgotPassword(){
+  msg("loginMsg", "");
+
+  const email = $("loginEmail").value.trim();
+  if (!email) {
+    return msg("loginMsg", "Skriv din email først.", "error");
+  }
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+
+  if (error) {
+    return msg("loginMsg", error.message, "error");
+  }
+
+  msg("loginMsg", "Password-link er sendt til din email.", "ok");
+}
+
 
 function logout(){
   ACCESS_TOKEN = null;
@@ -1141,6 +1226,36 @@ function computeTopicAnatomyStatus(topic, anatomyName, besEvents, thresholdPct){
   return { topic, anatomy: anatomyName, total, req, pct, status };
 }
 
+function getRequiredCompetenciesForLevel(level){
+  const config = REQUIRED_COMPETENCIES_BY_LEVEL[level] || "ALL";
+
+  const TOPIC_ANATOMY_MAP = {
+    "Vaskulære": ["cerebrum", "columna"],
+    "Vaskulære angiografi": ["cerebrum", "columna"],
+    "Traume/Traumefølge": ["cerebrum", "columna"],
+    "Hydrocefalus": ["cerebrum"],
+    "Demyeliniserende sygdom": ["cerebrum", "columna"],
+    "Neurodegenerativ": ["cerebrum", "columna"],
+    "Infektiøs & inflamatorisk": ["cerebrum", "columna"],
+    "Kongenit/normal variant": ["cerebrum", "columna"],
+    "Tumor": ["cerebrum", "columna"],
+    "Bihuler": ["cerebrum"],
+    "Øvrige": ["cerebrum", "columna"]
+  };
+
+  if (config !== "ALL") return config;
+
+  const all = [];
+  for (const topic of TOPICS){
+    const anatomies = TOPIC_ANATOMY_MAP[topic] || ["cerebrum", "columna"];
+    for (const anatomy of anatomies){
+      all.push({ topic, anatomy });
+    }
+  }
+
+  return all;
+}
+
 function buildTopicAnatomyStatuses(besEvents, thresholdPct){
   const rows = [];
   for (const topic of TOPICS){
@@ -1184,15 +1299,31 @@ function renderFinalEvaluation(student, evs, manualApprovalMap){
   const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
   const bes = evs.filter(e => e.eval_type === "beskrivelse");
 
-  const requiredTopicStatuses = buildTopicAnatomyStatuses(bes, thresholdPct)
-    .filter(x => (TOPIC_REQUIREMENTS[x.topic] ?? 0) > 0)
-    .map(x => {
-      const manual = manualApprovalMap?.[manualApprovalKey(x.topic, x.anatomy)];
-      if (manual?.approved) {
-        return { ...x, status: "Grøn", manuallyApproved: true };
-      }
-      return { ...x, manuallyApproved: false };
-    });
+  const requiredCompetencies = getRequiredCompetenciesForLevel(level);
+
+  const requiredTopicStatuses = requiredCompetencies.map(c => {
+    const status = computeTopicAnatomyStatus(
+      c.topic,
+      c.anatomy,
+      bes,
+      thresholdPct
+    );
+
+    const manual = manualApprovalMap?.[manualApprovalKey(c.topic, c.anatomy)];
+
+    if (manual?.approved) {
+      return {
+        ...status,
+        status: "Grøn",
+        manuallyApproved: true
+      };
+    }
+
+    return {
+      ...status,
+      manuallyApproved: false
+    };
+  });
 
   const pctValues = requiredTopicStatuses.map(x => x.pct);
   const averagePct = pctValues.length
@@ -1200,10 +1331,11 @@ function renderFinalEvaluation(student, evs, manualApprovalMap){
     : 0;
 
   const hasRed = requiredTopicStatuses.some(x => x.status === "Rød");
+  const hasYellow = requiredTopicStatuses.some(x => x.status === "Gul");
 
   let finalStatus = "Grøn";
   if (hasRed) finalStatus = "Rød";
-  else if (averagePct < thresholdPct) finalStatus = "Gul";
+  else if (hasYellow) finalStatus = "Gul";
 
   const box = $("finalBox");
   box.className = "callout " + (
@@ -1216,12 +1348,13 @@ function renderFinalEvaluation(student, evs, manualApprovalMap){
     <div style="margin-top:6px">
       <b>Niveau:</b> ${csvEscape(level)}<br/>
       <b>Krav 3+4:</b> ${thresholdPct}%<br/>
-      <b>Gennemsnit af emne/anatomi-procenter:</b> ${averagePct}%
+      <b>Gennemsnit af krævede kompetence-procenter:</b> ${averagePct}%
     </div>
     <div class="small" style="margin-top:6px">
-      <b>Regel:</b> Kompetence vurderes separat for relevante kombinationer af emne og anatomi.
-      Hvis bare én krævet kombination er Rød, bliver den endelige vurdering Rød.
-      Manuelle godkendelser tæller kun for den specifikke kombination, fx Tumor - cerebrum eller Tumor - columna.
+      <b>Regel:</b> Kun kompetencer, der er relevante for niveauet, tæller i den endelige vurdering.
+      For Intro tæller primært akutte/must-not-miss kompetencer.
+      For HU-niveauer tæller alle relevante kompetencer.
+      Alle krævede kompetencer skal være Grøn for endelig Grøn status.
     </div>
   `;
 
@@ -1234,7 +1367,6 @@ function renderFinalEvaluation(student, evs, manualApprovalMap){
     averagePct
   };
 }
-
 
 
 
@@ -1295,6 +1427,12 @@ function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
     const manual = manualApprovalMap?.[manualApprovalKey(x.topic, x.anatomy)] || null;
     const isManualApproved = !!manual?.approved;
     const shownStatus = isManualApproved ? "Grøn" : x.status;
+   const requiredForLevel = getRequiredCompetenciesForLevel(lastStudentLevel);
+
+const isRequiredForLevel = requiredForLevel.some(c =>
+  c.topic === x.topic &&
+  c.anatomy === x.anatomy
+);
     const approvalText = isManualApproved ? "Godkendt manuelt" : "—";
 
     const approvedInfo = isManualApproved
@@ -1331,6 +1469,7 @@ function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
         <td>${x.req}</td>
         <td>${x.pct}%</td>
         <td>${statusChip(shownStatus)}</td>
+        <td>${isRequiredForLevel ? "Ja" : "Nej"}</td>
         <td>${approvalText}</td>
         <td>${approvedInfo}</td>
         <td>${actionHtml}</td>
@@ -1712,6 +1851,105 @@ async function removeManualApproval(topic, anatomyName){
 ========================= */
 let lastStudentObj = null;
 
+async function renderDashboard(){
+  show($("dashboardCard"), true);
+
+  $("dashboardSummary").innerHTML = `
+    <span class="pill">Loading dashboard...</span>
+  `;
+
+  $("dashboardBody").innerHTML = `
+    <tr>
+      <td colspan="5">Loading...</td>
+    </tr>
+  `;
+
+  const students = await dbGetStudents();
+
+  let green = 0;
+  let yellow = 0;
+  let red = 0;
+
+  const rows = [];
+
+  for (const s of students){
+    const evs = await dbGetEvals(s.id);
+    const approvals = await dbGetManualApprovals(s.id);
+
+    const manualApprovalMap = Object.fromEntries(
+      approvals.map(a => [manualApprovalKey(a.topic, a.anatomy), a])
+    );
+
+    const level = s.level || "Intro";
+    const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
+    const bes = evs.filter(e => e.eval_type === "beskrivelse");
+
+    const requiredCompetencies = getRequiredCompetenciesForLevel(level);
+
+    const statuses = requiredCompetencies.map(c => {
+      const st = computeTopicAnatomyStatus(
+        c.topic,
+        c.anatomy,
+        bes,
+        thresholdPct
+      );
+
+      const manual = manualApprovalMap?.[manualApprovalKey(c.topic, c.anatomy)];
+
+      if (manual?.approved) {
+        return { ...st, status: "Grøn" };
+      }
+
+      return st;
+    });
+
+    const hasRed = statuses.some(x => x.status === "Rød");
+    const hasYellow = statuses.some(x => x.status === "Gul");
+
+    let finalStatus = "Grøn";
+    if (hasRed) finalStatus = "Rød";
+    else if (hasYellow) finalStatus = "Gul";
+
+    if (finalStatus === "Grøn") green++;
+    if (finalStatus === "Gul") yellow++;
+    if (finalStatus === "Rød") red++;
+
+    const good = bes.filter(e => e.clinical_scale === 3 || e.clinical_scale === 4).length;
+    const pct = bes.length ? Math.round((good / bes.length) * 100) : 0;
+
+rows.push(`
+  <tr style="cursor:pointer"
+      onclick="openStudentResults('${s.id}')">
+    <td>${csvEscape(s.name)}</td>
+        <td>${csvEscape(level)}</td>
+        <td>${statusChip(finalStatus)}</td>
+        <td>${bes.length}</td>
+        <td>${pct}%</td>
+      </tr>
+    `);
+  }
+
+  $("dashboardSummary").innerHTML = `
+    <span class="pill">Total trainees: ${students.length}</span>
+    <span class="pill ok">Grøn: ${green}</span>
+    <span class="pill warn">Gul: ${yellow}</span>
+    <span class="pill bad">Rød: ${red}</span>
+  `;
+
+  $("dashboardBody").innerHTML = rows.join("");
+}
+
+async function openStudentResults(studentId){
+  $("studentSelectResults").value = studentId;
+
+  await showResults();
+
+  $("resultsCard").scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
+
 async function showResults(){
   msg("resMsg","");
   hideCharts();
@@ -1745,6 +1983,7 @@ const manualApprovalMap = Object.fromEntries(
 
     // summary
     renderSummary(student, evs);
+
 
     // data table
     renderDataTable(evs);
@@ -1865,12 +2104,38 @@ async function editSelectedEval(){
     msg("resMsg", e.message || String(e), "error");
   }
 }
+
 function boot(){
+
   buildCheckboxes();
   setEvalUI();
   initTopicSelect();
   updateUIByRole();
   hideCharts();
+
+  // PASSWORD RECOVERY
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+
+    if (event === "PASSWORD_RECOVERY") {
+
+      const newPassword = prompt("Skriv nyt password:");
+
+      if (!newPassword || newPassword.length < 6){
+        alert("Password skal være mindst 6 tegn.");
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error){
+        alert(error.message);
+      } else {
+        alert("Password ændret. Du kan nu logge ind.");
+      }
+    }
+  });
 
   $("evalType").addEventListener("change", setEvalUI);
   $("btnSameDate").addEventListener("click", () => $("sDate").value = $("bDate").value);
@@ -1878,6 +2143,7 @@ function boot(){
   $("btnLogin").addEventListener("click", login);
   $("btnLogout").addEventListener("click", logout);
   $("btnChangePassword").addEventListener("click", changePassword);
+$("btnForgotPassword").addEventListener("click", forgotPassword);
 
   $("btnSaveStudent").addEventListener("click", saveStudent);
   $("btnDeleteStudent").addEventListener("click", deleteSelectedStudent);
