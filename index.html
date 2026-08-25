@@ -1255,6 +1255,9 @@ async function dbGetAllEvals(){
 }
 
 
+
+	
+
 async function dbGetAllManualApprovals(){
   const pageSize = 1000;
   let from = 0;
@@ -1265,7 +1268,9 @@ async function dbGetAllManualApprovals(){
     const { data, error } = await supabaseClient
       .from("manual_topic_approvals")
       .select("*")
-      .order("created_at", { ascending: true })
+      .order("student_id", { ascending: true })
+      .order("topic", { ascending: true })
+      .order("anatomy", { ascending: true })
       .range(from, from + pageSize - 1);
 
     if (error) throw error;
@@ -1280,6 +1285,10 @@ async function dbGetAllManualApprovals(){
 
   return allRows;
 }
+
+
+
+	
 
 
 async function dbGetAllAuditLogs(){
