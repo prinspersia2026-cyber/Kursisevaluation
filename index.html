@@ -1425,7 +1425,15 @@ async function addBeskrivelse(){
 
     const topics = checkedValues("topicChk");
     if (!topics.length) return msg("besMsg","Vælg mindst ét emne.","error");
+const accession_number = $("accessionNumber").value.trim();
 
+if (!accession_number) {
+  return msg(
+    "besMsg",
+    "Angiv accession nr.",
+    "error"
+  );
+}
     const clinical_scale = parseInt($("scale").value, 10);
     const error_types = checkedValues("errChk");
     const beskrivelse_date = $("bDate").value || null;
@@ -1434,6 +1442,7 @@ async function addBeskrivelse(){
     await dbInsertEval([{
       student_id: studentId,
       eval_type: "beskrivelse",
+	accession_number,
       modality,
       anatomy,
       topics,
@@ -1443,7 +1452,8 @@ async function addBeskrivelse(){
       supervision_date
     }]);
 
-    msg("besMsg","Gemte beskrivelse.","ok");
+   $("accessionNumber").value = "";
+msg("besMsg","Gemte beskrivelse.","ok");
   } catch(e){
     msg("besMsg", e.message || String(e), "error");
   }
