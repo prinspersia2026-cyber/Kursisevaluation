@@ -1113,14 +1113,58 @@ async function dbInsertEval(payloadArr){
   const { error } = await supabaseClient.from("evaluations").insert(payloadArr);
   if (error) throw error;
 }
+	
 async function dbGetEvals(studentId){
-  const { data, error } = await supabaseClient
-    .from("evaluations")
-    .select("*")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: true });
-  if (error) throw error;
-  return data || [];
+  const pageSize = 1000;
+  let from = 0;
+  let allRows = [];
+
+  while (true){
+
+    const { data, error } = await supabaseClient
+      .from("evaluations")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
+	async function dbGetAllEvals(){
+  const pageSize = 1000;
+  let from = 0;
+  let allRows = [];
+
+  while (true){
+
+    const { data, error } = await supabaseClient
+      .from("evaluations")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  return allRows;
 }
 
 async function dbGetManualApprovals(studentId){
@@ -1183,6 +1227,33 @@ async function dbGetAuditLogs(studentId){
   return data || [];
 }
 
+
+async function dbGetAllEvals(){
+  const pageSize = 1000;
+  let from = 0;
+  let allRows = [];
+
+  while (true){
+
+    const { data, error } = await supabaseClient
+      .from("evaluations")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  return allRows;
+}
+	
 
 /* =========================
    UI INIT
@@ -2679,14 +2750,13 @@ async function exportJSONBackup(){
       return;
     }
 
+
+
     const [students, evals] = await Promise.all([
-      dbGetStudents(),
-      supabaseClient.from("evaluations").select("*")
-        .then(r => {
-          if (r.error) throw r.error;
-          return r.data || [];
-        })
-    ]);
+  dbGetStudents(),
+  dbGetAllEvals()
+]);
+
 
     const payload = {
       students,
