@@ -1412,52 +1412,114 @@ async function deleteSelectedStudent(){
 ========================= */
 async function addBeskrivelse(){
   msg("besMsg","");
+
   try{
     const studentId = $("studentSelect").value;
-    if (!studentId) return msg("besMsg","Vælg en studerende.","error");
+
+    if (!studentId){
+      return msg(
+        "besMsg",
+        "Vælg en studerende.",
+        "error"
+      );
+    }
+
+    // ACCESSION NUMBER
+    const accession_number = $("accessionNumber").value.trim();
+
+    if (!accession_number){
+      return msg(
+        "besMsg",
+        "Angiv accession nr.",
+        "error"
+      );
+    }
 
     const modality = $("modality").value;
 
     const anatomy = [];
-    if ($("anCere").checked) anatomy.push("cerebrum");
-    if ($("anCol").checked) anatomy.push("columna");
-    if (!anatomy.length) return msg("besMsg","Vælg mindst én anatomi.","error");
+
+    if ($("anCere").checked){
+      anatomy.push("cerebrum");
+    }
+
+    if ($("anCol").checked){
+      anatomy.push("columna");
+    }
+
+    if (!anatomy.length){
+      return msg(
+        "besMsg",
+        "Vælg mindst én anatomi.",
+        "error"
+      );
+    }
 
     const topics = checkedValues("topicChk");
-    if (!topics.length) return msg("besMsg","Vælg mindst ét emne.","error");
-const accession_number = $("accessionNumber").value.trim();
 
-if (!accession_number) {
-  return msg(
-    "besMsg",
-    "Angiv accession nr.",
-    "error"
-  );
-}
-    const clinical_scale = parseInt($("scale").value, 10);
-    const error_types = checkedValues("errChk");
-    const beskrivelse_date = $("bDate").value || null;
-    const supervision_date = $("sDate").value || null;
+    if (!topics.length){
+      return msg(
+        "besMsg",
+        "Vælg mindst ét emne.",
+        "error"
+      );
+    }
+
+    const clinical_scale =
+      parseInt($("scale").value, 10);
+
+    const error_types =
+      checkedValues("errChk");
+
+    const beskrivelse_date =
+      $("bDate").value || null;
+
+    const supervision_date =
+      $("sDate").value || null;
+
 
     await dbInsertEval([{
       student_id: studentId,
       eval_type: "beskrivelse",
-	accession_number,
+
+      accession_number: accession_number,
+
       modality,
       anatomy,
       topics,
       clinical_scale,
-      error_types: error_types.length ? error_types : null,
+
+      error_types:
+        error_types.length
+          ? error_types
+          : null,
+
       beskrivelse_date,
       supervision_date
     }]);
 
-   $("accessionNumber").value = "";
-msg("besMsg","Gemte beskrivelse.","ok");
+
+    $("accessionNumber").value = "";
+
+    msg(
+      "besMsg",
+      "Gemte beskrivelse.",
+      "ok"
+    );
+
   } catch(e){
-    msg("besMsg", e.message || String(e), "error");
+
+    console.error("addBeskrivelse error:", e);
+
+    msg(
+      "besMsg",
+      e.message || String(e),
+      "error"
+    );
   }
 }
+
+	
 
 async function addVisitation(){
   msg("visMsg","");
