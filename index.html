@@ -2472,10 +2472,16 @@ async function importJSONToSupabase(){
     try { payload = JSON.parse(text); }
     catch { return msg("importMsg","Ugyldig JSON.","error"); }
 
-    const students = payload.students || [];
-    const evals = payload.evals || [];
+   const students = payload.students || [];
+const evals = payload.evals || [];
+const manualApprovals = payload.manual_approvals || [];
+const auditLogs = payload.audit_logs || [];
 
-    msg("importMsg",`Importer... students=${students.length}, evals=${evals.length}`,"ok");
+    msg(
+  "importMsg",
+  `Importer... students=${students.length}, evals=${evals.length}, approvals=${manualApprovals.length}, audit logs=${auditLogs.length}`,
+  "ok"
+);
 
     if (students.length){
       const stPayload = students.map(s => ({
@@ -2512,6 +2518,42 @@ async function importJSONToSupabase(){
       const { error } = await supabaseClient.from("evaluations").upsert(chunk, { onConflict: "id" });
       if (error) throw error;
     }
+
+	  for (const a of manualApprovals){
+
+  await dbUpsertManualApproval({
+    student_id: a.student_id,
+    topic: a.topic,
+    anatomy: a.anatomy,
+    approved: !!a.approved,
+    reason: a.reason || "",
+    approved_by: a.approved_by || null,
+    approved_by_email: a.approved_by_email || null,
+    approved_at: a.approved_at || null
+  });
+
+}
+
+	  for (let i = 0; i < auditLogs.length; i += chunkSize){
+
+  const chunk = auditLogs.slice(i, i + chunkSize).map(log => ({
+    id: log.id,
+    student_id: log.student_id,
+    action: log.action,
+    topic: log.topic ?? null,
+    anatomy: log.anatomy ?? null,
+    reason: log.reason ?? "",
+    performed_by: log.performed_by ?? null,
+    performed_by_email: log.performed_by_email ?? null,
+    created_at: log.created_at ?? null
+  }));
+
+  const { error } = await supabaseClient
+    .from("audit_logs")
+    .upsert(chunk, { onConflict: "id" });
+
+  if (error) throw error;
+}
 
     msg("importMsg","Import færdig ✅","ok");
     await refreshStudentsIntoSelects();
