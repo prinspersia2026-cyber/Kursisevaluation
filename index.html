@@ -330,12 +330,34 @@ hr{
       <h2>Change password</h2>
       <div class="row">
         <div>
-          <label>New password</label><br/>
-          <input type="password" id="newPassword" autocomplete="new-password" />
-        </div>
+			
         <div>
-          <button type="button" class="btn-primary" id="btnChangePassword">Change</button>
-        </div>
+  <label>Current password</label><br/>
+  <input
+    type="password"
+    id="currentPassword"
+    autocomplete="current-password"
+  />
+</div>
+
+<div>
+  <label>New password</label><br/>
+  <input
+    type="password"
+    id="newPassword"
+    autocomplete="new-password"
+  />
+</div>
+
+<div>
+  <button
+    type="button"
+    class="btn-primary"
+    id="btnChangePassword">
+    Change
+  </button>
+</div>
+		  
       </div>
       <p id="pwMsg" class="small"></p>
     </div>
@@ -1009,12 +1031,29 @@ function logout(){
 async function changePassword(){
   msg("pwMsg", "");
 
+  const currentPassword = $("currentPassword").value;
   const newPassword = $("newPassword").value;
+
+  if (!currentPassword){
+    return msg(
+      "pwMsg",
+      "Enter your current password.",
+      "error"
+    );
+  }
 
   if (!newPassword || newPassword.length < 6){
     return msg(
       "pwMsg",
-      "Password must be at least 6 characters.",
+      "New password must be at least 6 characters.",
+      "error"
+    );
+  }
+
+  if (currentPassword === newPassword){
+    return msg(
+      "pwMsg",
+      "New password must be different from current password.",
       "error"
     );
   }
@@ -1022,11 +1061,13 @@ async function changePassword(){
   try {
 
     const { data, error } = await supabaseClient.auth.updateUser({
-      password: newPassword
+      password: newPassword,
+      current_password: currentPassword
     });
 
     if (error) throw error;
 
+    $("currentPassword").value = "";
     $("newPassword").value = "";
 
     msg(
