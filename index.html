@@ -746,7 +746,7 @@ hr{
         <table>
           <thead>
             <tr>
-              <th>Type</th><th>Dato</th><th>Modality</th><th>Anatomi</th><th>Emner</th><th>Skala</th><th>Visitation</th><th>Fejl</th>
+             <th>Type</th><th>Dato</th><th>Accession nr.</th><th>Modality</th><th>Anatomi</th><th>Emner</th><th>Skala</th><th>Visitation</th><th>Fejl</th>
             </tr>
           </thead>
           <tbody id="dataBody"></tbody>
@@ -1671,6 +1671,7 @@ function renderDataTable(evs){
     tr.innerHTML = `
       <td>${csvEscape(e.eval_type)}</td>
       <td>${csvEscape(date)}</td>
+	  <td>${csvEscape(e.accession_number || "")}</td>
       <td>${csvEscape(e.modality || "")}</td>
       <td>${csvEscape((e.anatomy||[]).join(" / "))}</td>
       <td>${csvEscape((e.topics||[]).join(" | "))}</td>
