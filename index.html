@@ -1007,32 +1007,44 @@ function logout(){
 
 /* change password (Method B) */
 async function changePassword(){
-  msg("pwMsg","");
+  msg("pwMsg", "");
+
   const newPassword = $("newPassword").value;
+
   if (!newPassword || newPassword.length < 6){
-    return msg("pwMsg","Password must be at least 6 characters.","error");
-  }
-  if (!ACCESS_TOKEN){
-    return msg("pwMsg","Not logged in.","error");
-  }
-
-  const res = await cleanFetch(`${SUPABASE_URL}/auth/v1/user`, {
-    method: "PUT",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": "Bearer " + ACCESS_TOKEN,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ password: newPassword })
-  });
-
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok){
-    return msg("pwMsg", json?.error_description || json?.message || "Failed to change password", "error");
+    return msg(
+      "pwMsg",
+      "Password must be at least 6 characters.",
+      "error"
+    );
   }
 
-  $("newPassword").value = "";
-  msg("pwMsg","Password changed ✅","ok");
+  try {
+
+    const { data, error } = await supabaseClient.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) throw error;
+
+    $("newPassword").value = "";
+
+    msg(
+      "pwMsg",
+      "Password changed ✅",
+      "ok"
+    );
+
+  } catch(e){
+
+    console.error("Change password error:", e);
+
+    msg(
+      "pwMsg",
+      e.message || "Failed to change password",
+      "error"
+    );
+  }
 }
 
 /* =========================
