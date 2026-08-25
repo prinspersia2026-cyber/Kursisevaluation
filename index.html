@@ -1711,6 +1711,38 @@ tr.addEventListener("click", () => {
   }
 }
 
+function searchAccession(){
+  const q = $("accessionSearch").value.trim().toLowerCase();
+
+  // اگر search خالی باشد، جدول عادی را برگردان
+  if (!q){
+    renderDataTable(lastEvals);
+    msg("resMsg", "", "");
+    return;
+  }
+
+  const matches = lastEvals.filter(e =>
+    String(e.accession_number || "")
+      .trim()
+      .toLowerCase() === q
+  );
+
+  renderDataTable(matches);
+
+  if (!matches.length){
+    msg("resMsg", "Ingen evaluering fundet med dette accession nr.", "error");
+    return;
+  }
+
+  msg(
+    "resMsg",
+    `Fundet ${matches.length} evaluering(er) med accession nr. ${$("accessionSearch").value.trim()}`,
+    "ok"
+  );
+}
+
+	
+
 function calcGoodPct(besRows){
   const total = besRows.length;
   const good = besRows.filter(e => e.clinical_scale === 3 || e.clinical_scale === 4).length;
@@ -3110,6 +3142,7 @@ $("btnForgotPassword").addEventListener("click", forgotPassword);
   $("btnAddVis").addEventListener("click", addVisitation);
 
   $("btnShowResults").addEventListener("click", showResults);
+	$("btnSearchAccession").addEventListener("click", searchAccession);
   $("btnShowTopic").addEventListener("click", () => renderTopic(lastStudentName));
 
 $("btnEditSelected").addEventListener("click", editSelectedEval);
