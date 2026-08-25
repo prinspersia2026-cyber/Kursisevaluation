@@ -1253,6 +1253,62 @@ async function dbGetAllEvals(){
 
   return allRows;
 }
+
+
+async function dbGetAllManualApprovals(){
+  const pageSize = 1000;
+  let from = 0;
+  let allRows = [];
+
+  while (true){
+
+    const { data, error } = await supabaseClient
+      .from("manual_topic_approvals")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
+
+async function dbGetAllAuditLogs(){
+  const pageSize = 1000;
+  let from = 0;
+  let allRows = [];
+
+  while (true){
+
+    const { data, error } = await supabaseClient
+      .from("audit_logs")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  return allRows;
+}
+	
+
 	
 
 /* =========================
@@ -2752,17 +2808,33 @@ async function exportJSONBackup(){
 
 
 
-    const [students, evals] = await Promise.all([
+   const [
+  students,
+  evals,
+  manualApprovals,
+  auditLogs
+] = await Promise.all([
   dbGetStudents(),
-  dbGetAllEvals()
+  dbGetAllEvals(),
+  dbGetAllManualApprovals(),
+  dbGetAllAuditLogs()
 ]);
 
 	  console.log("TOTAL EVALUATIONS IN BACKUP:", evals.length);
 
+	  alert(
+  "Students: " + students.length +
+  "\nEvaluations: " + evals.length +
+  "\nManual approvals: " + manualApprovals.length +
+  "\nAudit logs: " + auditLogs.length
+);
+
     const payload = {
-      students,
-      evals
-    };
+  students,
+  evals,
+  manual_approvals: manualApprovals,
+  audit_logs: auditLogs
+};
 
     const blob = new Blob(
       [JSON.stringify(payload, null, 2)],
