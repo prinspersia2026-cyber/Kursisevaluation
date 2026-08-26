@@ -396,16 +396,32 @@ hr{
   <h3>Re-review · Scale 1–2</h3>
 
   <p class="small">
-    Viser vurderinger med klinisk skala 1 eller 2.
-  </p>
+  Viser vurderinger med klinisk skala 1 eller 2.
+</p>
 
-  <button
-    type="button"
-    class="btn-secondary"
-    id="btnShowReReview"
-  >
-    Vis cases til re-review
-  </button>
+<div class="row">
+
+  <div>
+    <label>Studerende</label><br/>
+
+    <select id="reReviewStudentSelect">
+      <option value="">
+        Alle studerende
+      </option>
+    </select>
+  </div>
+
+  <div>
+    <button
+      type="button"
+      class="btn-secondary"
+      id="btnShowReReview"
+    >
+      Vis cases til re-review
+    </button>
+  </div>
+
+</div>
 
   <div
     id="reReviewResults"
