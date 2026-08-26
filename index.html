@@ -3516,9 +3516,23 @@ async function renderDashboard(){
 
   const rows = [];
 
-  for (const s of students){
-    const evs = await dbGetEvals(s.id);
-    const approvals = await dbGetManualApprovals(s.id);
+ for (const s of students){
+
+  const [
+    evs,
+    approvals,
+    topicAssessments
+  ] = await Promise.all([
+    dbGetEvals(s.id),
+    dbGetManualApprovals(s.id),
+    dbGetTopicAssessments(s.id)
+  ]);
+
+  const statsEvs =
+    buildStatsBeskrivelseEvents(
+      evs,
+      topicAssessments
+    );
 
     const manualApprovalMap = Object.fromEntries(
       approvals.map(a => [manualApprovalKey(a.topic, a.anatomy), a])
@@ -3526,7 +3540,15 @@ async function renderDashboard(){
 
     const level = s.level || "Intro";
     const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
-    const bes = evs.filter(e => e.eval_type === "beskrivelse");
+   const besCases =
+  evs.filter(
+    e => e.eval_type === "beskrivelse"
+  );
+
+const besAssessments =
+  statsEvs.filter(
+    e => e.eval_type === "beskrivelse"
+  );
 
     const requiredCompetencies = getRequiredCompetenciesForLevel(level);
 
@@ -3534,7 +3556,7 @@ async function renderDashboard(){
       const st = computeTopicAnatomyStatus(
         c.topic,
         c.anatomy,
-        bes,
+        besAssessments,
         thresholdPct
       );
 
@@ -3558,8 +3580,19 @@ async function renderDashboard(){
     if (finalStatus === "Gul") yellow++;
     if (finalStatus === "Rød") red++;
 
-    const good = bes.filter(e => e.clinical_scale === 3 || e.clinical_scale === 4).length;
-    const pct = bes.length ? Math.round((good / bes.length) * 100) : 0;
+   const good =
+  besAssessments.filter(
+    e =>
+      e.clinical_scale === 3 ||
+      e.clinical_scale === 4
+  ).length;
+
+const pct =
+  besAssessments.length
+    ? Math.round(
+        (good / besAssessments.length) * 100
+      )
+    : 0;
 
 rows.push(`
   <tr style="cursor:pointer"
@@ -3567,7 +3600,7 @@ rows.push(`
     <td>${csvEscape(s.name)}</td>
         <td>${csvEscape(level)}</td>
         <td>${statusChip(finalStatus)}</td>
-        <td>${bes.length}</td>
+        <td>${besCases.length}</td>
         <td>${pct}%</td>
       </tr>
     `);
