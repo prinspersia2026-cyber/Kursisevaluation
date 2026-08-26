@@ -736,7 +736,7 @@ hr{
 
       <div class="card">
         <h3>Data (seneste 200)</h3>
-		  <div class="row" style="margin-bottom:10px">
+		  <div id="accessionSearchRow" class="row" style="margin-bottom:10px">
   <div>
     <label>Søg på accession nr.</label><br/>
     <input
@@ -937,6 +937,9 @@ function canInsertEval(){ return ["admin","administrative","evaluator"].includes
 function canSeeResults(){ return ["admin","administrative","evaluator","observer"].includes(currentRole); }
 function canImport(){ return ["admin","administrative"].includes(currentRole); }
 function canManualApproveTopics(){ return ["admin","administrative"].includes(currentRole); }
+	function canSeeAccession(){
+  return currentRole === "admin";
+}
 
 async function loadUserRole(){
   currentRole = null;
@@ -970,6 +973,10 @@ function updateUIByRole(){
 show($("dashboardCard"), canSeeResults());
   show($("evaluationCard"), canInsertEval());
   show($("resultsCard"), canSeeResults());
+	show(
+  $("accessionSearchRow"),
+  canSeeAccession()
+);
   show($("importCard"), canImport());
 }
 
