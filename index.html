@@ -4139,6 +4139,125 @@ rows.push(`
   $("dashboardBody").innerHTML = rows.join("");
 }
 
+	async function renderReReviewCases(){
+
+  if (currentRole !== "admin"){
+    return;
+  }
+
+  const body =
+    $("reReviewBody");
+
+  const resultsBox =
+    $("reReviewResults");
+
+  resultsBox.style.display = "block";
+
+  body.innerHTML = `
+    <tr>
+      <td colspan="7">
+        Loading...
+      </td>
+    </tr>
+  `;
+
+
+  const students =
+    await dbGetStudents();
+
+  const rows = [];
+
+
+  for (const student of students){
+
+    const [
+      evs,
+      assessments
+    ] = await Promise.all([
+      dbGetEvals(student.id),
+      dbGetTopicAssessments(student.id)
+    ]);
+
+
+    const evalMap =
+      new Map(
+        evs.map(e => [e.id, e])
+      );
+
+
+    for (const a of assessments){
+
+      const scale =
+        Number(a.clinical_scale);
+
+      if (scale !== 1 && scale !== 2){
+        continue;
+      }
+
+
+      const e =
+        evalMap.get(a.evaluation_id);
+
+      if (!e){
+        continue;
+      }
+
+
+      const date =
+        e.beskrivelse_date ||
+        e.supervision_date ||
+        e.visitation_date ||
+        "";
+
+
+      const errors =
+        Array.isArray(a.error_types)
+          ? a.error_types.join(", ")
+          : "";
+
+
+      rows.push(`
+        <tr>
+          <td>${csvEscape(student.name)}</td>
+
+          <td>${csvEscape(date)}</td>
+
+          <td>${csvEscape(a.anatomy || "")}</td>
+
+          <td>${csvEscape(a.topic || "")}</td>
+
+          <td>${scale}</td>
+
+          <td>${csvEscape(errors)}</td>
+
+          <td class="accessionCol">
+            ${csvEscape(e.accession_number || "")}
+          </td>
+        </tr>
+      `);
+
+    }
+  }
+
+
+  if (!rows.length){
+
+    body.innerHTML = `
+      <tr>
+        <td colspan="7">
+          Ingen cases med scale 1 eller 2.
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+
+  body.innerHTML =
+    rows.join("");
+}
+
 async function openStudentResults(studentId){
   $("studentSelectResults").value = studentId;
 
@@ -4456,6 +4575,10 @@ $("btnForgotPassword").addEventListener("click", forgotPassword);
   $("btnAddVis").addEventListener("click", addVisitation);
 
   $("btnShowResults").addEventListener("click", showResults);
+	$("btnShowReReview").addEventListener(
+  "click",
+  renderReReviewCases
+);
 	$("btnSearchAccession").addEventListener("click", searchAccession);
 	$("btnToggleAccession").addEventListener(
   "click",
