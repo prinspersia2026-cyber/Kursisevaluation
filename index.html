@@ -270,6 +270,9 @@ hr{
   margin-left:auto;
   margin-right:auto;
 }
+	 .accessionCol{
+  display:none;
+}
 </style>
 
 </head>
@@ -752,11 +755,21 @@ hr{
       Søg
     </button>
   </div>
+
+<div>
+  <button
+    type="button"
+    class="btn-secondary"
+    id="btnToggleAccession"
+  >
+    Vis accession nr.
+  </button>
+</div>
 </div>
         <table>
           <thead>
             <tr>
-             <th>Type</th><th>Dato</th><th>Accession nr.</th><th>Modality</th><th>Anatomi</th><th>Emner</th><th>Skala</th><th>Visitation</th><th>Fejl</th>
+             <th>Type</th><th>Dato</th><th class="accessionCol">Accession nr.</th><th>Modality</th><th>Anatomi</th><th>Emner</th><th>Skala</th><th>Visitation</th><th>Fejl</th>
             </tr>
           </thead>
           <tbody id="dataBody"></tbody>
@@ -2262,7 +2275,9 @@ function renderDataTable(evs, topicAssessments = []){
     tr.innerHTML = `
       <td>${csvEscape(e.eval_type)}</td>
       <td>${csvEscape(date)}</td>
-      <td>${csvEscape(e.accession_number || "")}</td>
+      <td class="accessionCol">
+  ${csvEscape(e.accession_number || "")}
+</td>
       <td>${csvEscape(e.modality || "")}</td>
       <td>${csvEscape(anatomyText)}</td>
       <td>${csvEscape(topicsText)}</td>
@@ -2334,7 +2349,33 @@ function searchAccession(){
   );
 }
 
-	
+
+	function toggleAccessionVisibility(){
+
+  if (!canSeeAccession()){
+    return;
+  }
+
+  const btn = $("btnToggleAccession");
+
+  const showNow =
+    btn.dataset.visible !== "true";
+
+  document
+    .querySelectorAll(".accessionCol")
+    .forEach(el => {
+      el.style.display =
+        showNow ? "table-cell" : "none";
+    });
+
+  btn.dataset.visible =
+    showNow ? "true" : "false";
+
+  btn.textContent =
+    showNow
+      ? "Skjul accession nr."
+      : "Vis accession nr.";
+}
 
 function calcGoodPct(besRows){
   const total = besRows.length;
@@ -3987,6 +4028,10 @@ $("btnForgotPassword").addEventListener("click", forgotPassword);
 
   $("btnShowResults").addEventListener("click", showResults);
 	$("btnSearchAccession").addEventListener("click", searchAccession);
+	$("btnToggleAccession").addEventListener(
+  "click",
+  toggleAccessionVisibility
+);
   $("btnShowTopic").addEventListener("click", () => renderTopic(lastStudentName));
 
 $("btnEditSelected").addEventListener("click", editSelectedEval);
