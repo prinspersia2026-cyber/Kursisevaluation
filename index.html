@@ -1262,20 +1262,19 @@ async function dbGetEvals(studentId){
 
 
 	
-	async function dbGetTopicAssessments(studentId){
+async function dbGetTopicAssessments(studentId){
 
-  const { data, error } = await supabaseClient
-    .from("evaluation_topic_assessments")
-    .select(`
-      *,
-      evaluations!inner (
-        student_id
-      )
-    `)
-    .eq("evaluations.student_id", studentId)
-    .order("created_at", { ascending: true });
+  const { data, error } =
+    await supabaseClient.rpc(
+      "get_topic_assessments_for_student_safe",
+      {
+        p_student_id: studentId
+      }
+    );
 
-  if (error) throw error;
+  if (error){
+    throw error;
+  }
 
   return data || [];
 }
