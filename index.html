@@ -1680,6 +1680,32 @@ async function addBeskrivelse(){
     const assessments =
       getTopicAssessmentsFromUI();
 
+	  const anatomy = [
+  ...new Set(
+    assessments.map(a => a.anatomy)
+  )
+];
+
+const topics = [
+  ...new Set(
+    assessments.map(a => a.topic)
+  )
+];
+
+const clinical_scale =
+  assessments[0].clinical_scale;
+
+const error_types = [
+  ...new Set(
+    assessments.flatMap(
+      a =>
+        Array.isArray(a.error_types)
+          ? a.error_types
+          : []
+    )
+  )
+];
+
 
     // Check whether this examination already exists
     let evaluation =
@@ -1699,42 +1725,31 @@ async function addBeskrivelse(){
 
       // TEMPORARY LEGACY DATA
       // kept until statistics are migrated to the new model
-      const anatomy = [];
+     const anatomy = [
+  ...new Set(
+    assessments.map(a => a.anatomy)
+  )
+];
 
-      if ($("anCere").checked){
-        anatomy.push("cerebrum");
-      }
+const topics = [
+  ...new Set(
+    assessments.map(a => a.topic)
+  )
+];
 
-      if ($("anCol").checked){
-        anatomy.push("columna");
-      }
+const clinical_scale =
+  assessments[0].clinical_scale;
 
-      if (!anatomy.length){
-        return msg(
-          "besMsg",
-          "Vælg mindst én anatomi.",
-          "error"
-        );
-      }
-
-
-      const topics =
-        checkedValues("topicChk");
-
-      if (!topics.length){
-        return msg(
-          "besMsg",
-          "Vælg mindst ét emne.",
-          "error"
-        );
-      }
-
-
-      const clinical_scale =
-        parseInt($("scale").value, 10);
-
-      const error_types =
-        checkedValues("errChk");
+const error_types = [
+  ...new Set(
+    assessments.flatMap(
+      a =>
+        Array.isArray(a.error_types)
+          ? a.error_types
+          : []
+    )
+  )
+];
 
       const beskrivelse_date =
         $("bDate").value || null;
