@@ -2327,8 +2327,19 @@ function renderFinalEvaluation(student, evs, manualApprovalMap){
 
 
 
-function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
+function renderStats(
+  student,
+  evs,
+  statsEvs,
+  thresholdPct,
+  perTopic,
+  manualApprovalMap
+){
   const bes = evs.filter(e => e.eval_type === "beskrivelse");
+	const assessmentBes =
+  statsEvs.filter(
+    e => e.eval_type === "beskrivelse"
+  );
   const modalityCount = { CT:0, MR:0 };
   const anatomyCount = { cerebrum:0, columna:0 };
   const errorsCount = Object.fromEntries(ERROR_TYPES.map(x => [x,0]));
@@ -2377,7 +2388,11 @@ function renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap){
     <tr><td><b>MR</b></td><td>${modAnat.MR.cerebrum}</td><td>${modAnat.MR.columna}</td></tr>
   `;
 
-  const topicAnatomyStatuses = buildTopicAnatomyStatuses(bes, thresholdPct);
+ const topicAnatomyStatuses =
+  buildTopicAnatomyStatuses(
+    assessmentBes,
+    thresholdPct
+  );
 
   $("tblTopicStatus").innerHTML = topicAnatomyStatuses.map(x => {
     const manual = manualApprovalMap?.[manualApprovalKey(x.topic, x.anatomy)] || null;
@@ -2447,7 +2462,7 @@ const isRequiredForLevel = requiredForLevel.some(c =>
     let cerebrum = 0;
     let columna = 0;
 
-    for (const e of bes){
+    for (const e of assessmentBes){
       const topics = e.topics || [];
       const anatomy = e.anatomy || [];
       if (!topics.includes(topic)) continue;
@@ -3398,7 +3413,14 @@ const { thresholdPct, perTopic } =
     statsEvs,
     manualApprovalMap
   );
-    renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap);
+    renderStats(
+  student,
+  evs,
+  statsEvs,
+  thresholdPct,
+  perTopic,
+  manualApprovalMap
+);
     renderWeeklyErrorTrends(studentName, evs);
 
     msg("resMsg","OK","ok");
