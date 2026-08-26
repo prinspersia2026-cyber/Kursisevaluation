@@ -1200,19 +1200,28 @@ async function dbGetEvals(studentId){
 }
 
 
-	async function dbFindBeskrivelseByAccession(studentId, accessionNumber){
+	async function dbFindBeskrivelseByAccession(
+  studentId,
+  accessionNumber
+){
 
-  const { data, error } = await supabaseClient
-    .from("evaluations")
-    .select("*")
-    .eq("student_id", studentId)
-    .eq("eval_type", "beskrivelse")
-    .ilike("accession_number", accessionNumber.trim())
-    .limit(1);
+  const { data, error } =
+    await supabaseClient.rpc(
+      "find_beskrivelse_id_by_accession",
+      {
+        p_student_id: studentId,
+        p_accession_number:
+          accessionNumber.trim()
+      }
+    );
 
-  if (error) throw error;
+  if (error){
+    throw error;
+  }
 
-  return data?.[0] || null;
+  return data
+    ? { id: data }
+    : null;
 }
 
 	
