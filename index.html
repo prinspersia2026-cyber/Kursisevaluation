@@ -1183,12 +1183,19 @@ async function dbGetStudents(){
       "get_students_safe"
     );
 
+  console.log(
+    "GET STUDENTS SAFE:",
+    { data, error, currentRole }
+  );
+
   if (error){
     throw error;
   }
 
   return data || [];
 }
+
+	
 
 
 async function dbGetObserversForAdmin(){
