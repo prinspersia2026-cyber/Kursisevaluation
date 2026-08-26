@@ -273,6 +273,9 @@ hr{
 	 .accessionCol{
   display:none;
 }
+	 .reReviewAccessionCol{
+  display:none;
+}
 </style>
 
 </head>
@@ -403,12 +406,7 @@ hr{
 
   <div>
     <label>Studerende</label><br/>
-
-    <select id="reReviewStudentSelect">
-      <option value="">
-        Alle studerende
-      </option>
-    </select>
+    <select id="reReviewStudentSelect"></select>
   </div>
 
   <div>
@@ -418,6 +416,16 @@ hr{
       id="btnShowReReview"
     >
       Vis cases til re-review
+    </button>
+  </div>
+
+  <div>
+    <button
+      type="button"
+      class="btn-secondary"
+      id="btnToggleReReviewAccession"
+    >
+      Vis accession nr.
     </button>
   </div>
 
@@ -436,9 +444,9 @@ hr{
           <th>Emne</th>
           <th>Scale</th>
           <th>Fejltype</th>
-          <th class="accessionCol">
-            Accession nr.
-          </th>
+          <th class="reReviewAccessionCol">
+  Accession nr.
+</th>
         </tr>
       </thead>
 
@@ -4162,11 +4170,21 @@ rows.push(`
     return;
   }
 
+
+  const studentId =
+    $("reReviewStudentSelect").value;
+
+  if (!studentId){
+    return;
+  }
+
+
   const body =
     $("reReviewBody");
 
   const resultsBox =
     $("reReviewResults");
+
 
   resultsBox.style.display = "block";
 
@@ -4179,27 +4197,49 @@ rows.push(`
   `;
 
 
-  const students =
-    await dbGetStudents();
+  try{
 
-  const rows = [];
+    const students =
+      await dbGetStudents();
+
+    const student =
+      students.find(
+        s => s.id === studentId
+      );
 
 
-  for (const student of students){
+    if (!student){
+
+      body.innerHTML = `
+        <tr>
+          <td colspan="7">
+            Studerende blev ikke fundet.
+          </td>
+        </tr>
+      `;
+
+      return;
+    }
+
 
     const [
       evs,
       assessments
     ] = await Promise.all([
-      dbGetEvals(student.id),
-      dbGetTopicAssessments(student.id)
+      dbGetEvals(studentId),
+      dbGetTopicAssessments(studentId)
     ]);
 
 
     const evalMap =
       new Map(
-        evs.map(e => [e.id, e])
+        evs.map(
+          e => [e.id, e]
+        )
       );
+
+
+    const rows = [];
 
 
     for (const a of assessments){
@@ -4207,13 +4247,20 @@ rows.push(`
       const scale =
         Number(a.clinical_scale);
 
-      if (scale !== 1 && scale !== 2){
+
+      if (
+        scale !== 1 &&
+        scale !== 2
+      ){
         continue;
       }
 
 
       const e =
-        evalMap.get(a.evaluation_id);
+        evalMap.get(
+          a.evaluation_id
+        );
+
 
       if (!e){
         continue;
@@ -4235,44 +4282,137 @@ rows.push(`
 
       rows.push(`
         <tr>
-          <td>${csvEscape(student.name)}</td>
 
-          <td>${csvEscape(date)}</td>
+          <td>
+            ${csvEscape(student.name)}
+          </td>
 
-          <td>${csvEscape(a.anatomy || "")}</td>
+          <td>
+            ${csvEscape(date)}
+          </td>
 
-          <td>${csvEscape(a.topic || "")}</td>
+          <td>
+            ${csvEscape(a.anatomy || "")}
+          </td>
 
-          <td>${scale}</td>
+          <td>
+            ${csvEscape(a.topic || "")}
+          </td>
 
-          <td>${csvEscape(errors)}</td>
+          <td>
+            ${scale}
+          </td>
 
-          <td class="accessionCol">
+          <td>
+            ${csvEscape(errors)}
+          </td>
+
+          <td class="reReviewAccessionCol">
             ${csvEscape(e.accession_number || "")}
           </td>
+
         </tr>
       `);
 
     }
-  }
 
 
-  if (!rows.length){
+    if (!rows.length){
+
+      body.innerHTML = `
+        <tr>
+          <td colspan="7">
+            Ingen cases med scale 1 eller 2
+            for denne studerende.
+          </td>
+        </tr>
+      `;
+
+    } else {
+
+      body.innerHTML =
+        rows.join("");
+
+    }
+
+
+    applyReReviewAccessionVisibility();
+
+
+  } catch(e){
+
+    console.error(
+      "renderReReviewCases error:",
+      e
+    );
 
     body.innerHTML = `
       <tr>
         <td colspan="7">
-          Ingen cases med scale 1 eller 2.
+          ${csvEscape(
+            e.message || String(e)
+          )}
         </td>
       </tr>
     `;
 
+  }
+
+}
+
+
+	function applyReReviewAccessionVisibility(){
+
+  const btn =
+    $("btnToggleReReviewAccession");
+
+  const visible =
+    btn.dataset.visible === "true";
+
+
+  document
+    .querySelectorAll(
+      ".reReviewAccessionCol"
+    )
+    .forEach(el => {
+
+      el.style.display =
+        visible
+          ? "table-cell"
+          : "none";
+
+    });
+
+}
+
+
+function toggleReReviewAccessionVisibility(){
+
+  if (currentRole !== "admin"){
     return;
   }
 
 
-  body.innerHTML =
-    rows.join("");
+  const btn =
+    $("btnToggleReReviewAccession");
+
+  const showNow =
+    btn.dataset.visible !== "true";
+
+
+  btn.dataset.visible =
+    showNow
+      ? "true"
+      : "false";
+
+
+  btn.textContent =
+    showNow
+      ? "Skjul accession nr."
+      : "Vis accession nr.";
+
+
+  applyReReviewAccessionVisibility();
 }
 
 async function openStudentResults(studentId){
@@ -4595,6 +4735,10 @@ $("btnForgotPassword").addEventListener("click", forgotPassword);
 	$("btnShowReReview").addEventListener(
   "click",
   renderReReviewCases
+);
+	$("btnToggleReReviewAccession").addEventListener(
+  "click",
+  toggleReReviewAccessionVisibility
 );
 	$("btnSearchAccession").addEventListener("click", searchAccession);
 	$("btnToggleAccession").addEventListener(
