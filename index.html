@@ -1297,16 +1297,27 @@ async function dbInsertEval(payloadArr){
 	
 
 	async function dbInsertTopicAssessments(payloadArr){
-  if (!payloadArr || !payloadArr.length) return [];
 
-  const { data, error } = await supabaseClient
-    .from("evaluation_topic_assessments")
-    .insert(payloadArr)
-    .select("*");
+  if (!payloadArr || !payloadArr.length){
+    return [];
+  }
 
-  if (error) throw error;
+  const rows =
+    payloadArr.map(row => ({
+      ...row,
+      id: row.id || crypto.randomUUID()
+    }));
 
-  return data || [];
+  const { error } =
+    await supabaseClient
+      .from("evaluation_topic_assessments")
+      .insert(rows);
+
+  if (error){
+    throw error;
+  }
+
+  return rows;
 }
 	
 async function dbGetEvals(studentId){
