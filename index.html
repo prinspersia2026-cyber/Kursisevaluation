@@ -2442,24 +2442,76 @@ function manualApprovalKey(topic, anatomyName){
   return `${topic}|||${anatomyName}`;
 }
 
-function renderSummary(student, evs){
-  const bes = evs.filter(e => e.eval_type === "beskrivelse");
-  const { total, pct } = calcGoodPct(bes);
+function renderSummary(
+  student,
+  evs,
+  statsEvs
+){
+
+  // Number of examinations/cases
+  const besCases =
+    evs.filter(
+      e => e.eval_type === "beskrivelse"
+    );
+
+
+  // Individual topic/anatomy assessments
+  const besAssessments =
+    statsEvs.filter(
+      e => e.eval_type === "beskrivelse"
+    );
+
+
+  const { pct } =
+    calcGoodPct(besAssessments);
+
 
   const pills = [];
-  pills.push(`<span class="pill">Niveau: ${csvEscape(student?.level || "")}</span>`);
-if (student?.competence_required){
-  pills.push(`<span class="pill" style="background:#fff0f0;border-color:#ffb3b3;">
-    Competence kræves
-  </span>`);
-} else {
-  pills.push(`<span class="pill">
-    Ingen competence påkrævet
-  </span>`);
-}
-  pills.push(`<span class="pill">Beskrivelser: ${total}</span>`);
-  pills.push(`<span class="pill">3+4: ${pct}%</span>`);
-  html("summaryPills", pills.join(""));
+
+  pills.push(
+    `<span class="pill">
+      Niveau: ${csvEscape(student?.level || "")}
+    </span>`
+  );
+
+
+  if (student?.competence_required){
+
+    pills.push(
+      `<span class="pill"
+        style="background:#fff0f0;border-color:#ffb3b3;">
+        Competence kræves
+      </span>`
+    );
+
+  } else {
+
+    pills.push(
+      `<span class="pill">
+        Ingen competence påkrævet
+      </span>`
+    );
+  }
+
+
+  pills.push(
+    `<span class="pill">
+      Beskrivelser: ${besCases.length}
+    </span>`
+  );
+
+
+  pills.push(
+    `<span class="pill">
+      3+4: ${pct}%
+    </span>`
+  );
+
+
+  html(
+    "summaryPills",
+    pills.join("")
+  );
 }
 
 
@@ -3626,7 +3678,11 @@ const manualApprovalMap = Object.fromEntries(
   );
 
     // summary
-    renderSummary(student, evs);
+   renderSummary(
+  student,
+  evs,
+  statsEvs
+);
 
 
     // data table
