@@ -1428,12 +1428,19 @@ async function dbGetTopicAssessments(studentId){
 }
 
 async function dbGetManualApprovals(studentId){
-  const { data, error } = await supabaseClient
-    .from("manual_topic_approvals")
-    .select("*")
-    .eq("student_id", studentId);
 
-  if (error) throw error;
+  const { data, error } =
+    await supabaseClient.rpc(
+      "get_manual_approvals_for_student_safe",
+      {
+        p_student_id: studentId
+      }
+    );
+
+  if (error){
+    throw error;
+  }
+
   return data || [];
 }
 
