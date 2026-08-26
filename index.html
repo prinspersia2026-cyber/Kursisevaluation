@@ -1151,8 +1151,27 @@ async function dbDeleteStudent(studentId){
   if (error) throw error;
 }
 async function dbInsertEval(payloadArr){
-  const { error } = await supabaseClient.from("evaluations").insert(payloadArr);
+  const { data, error } = await supabaseClient
+    .from("evaluations")
+    .insert(payloadArr)
+    .select("*");
+
   if (error) throw error;
+
+  return data || [];
+}
+
+	async function dbInsertTopicAssessments(payloadArr){
+  if (!payloadArr || !payloadArr.length) return [];
+
+  const { data, error } = await supabaseClient
+    .from("evaluation_topic_assessments")
+    .insert(payloadArr)
+    .select("*");
+
+  if (error) throw error;
+
+  return data || [];
 }
 	
 async function dbGetEvals(studentId){
@@ -1182,6 +1201,23 @@ async function dbGetEvals(studentId){
   return allRows;
 }
 
+
+	async function dbFindBeskrivelseByAccession(studentId, accessionNumber){
+
+  const { data, error } = await supabaseClient
+    .from("evaluations")
+    .select("*")
+    .eq("student_id", studentId)
+    .eq("eval_type", "beskrivelse")
+    .ilike("accession_number", accessionNumber.trim())
+    .limit(1);
+
+  if (error) throw error;
+
+  return data?.[0] || null;
+}
+
+	
 	async function dbGetAllEvals(){
   const pageSize = 1000;
   let from = 0;
@@ -1206,6 +1242,26 @@ async function dbGetEvals(studentId){
   }
 
   return allRows;
+}
+
+
+	
+	async function dbGetTopicAssessments(studentId){
+
+  const { data, error } = await supabaseClient
+    .from("evaluation_topic_assessments")
+    .select(`
+      *,
+      evaluations!inner (
+        student_id
+      )
+    `)
+    .eq("evaluations.student_id", studentId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  return data || [];
 }
 
 async function dbGetManualApprovals(studentId){
@@ -1267,34 +1323,6 @@ async function dbGetAuditLogs(studentId){
   if (error) throw error;
   return data || [];
 }
-
-
-async function dbGetAllEvals(){
-  const pageSize = 1000;
-  let from = 0;
-  let allRows = [];
-
-  while (true){
-
-    const { data, error } = await supabaseClient
-      .from("evaluations")
-      .select("*")
-      .order("created_at", { ascending: true })
-      .range(from, from + pageSize - 1);
-
-    if (error) throw error;
-
-    const rows = data || [];
-    allRows.push(...rows);
-
-    if (rows.length < pageSize) break;
-
-    from += pageSize;
-  }
-
-  return allRows;
-}
-
 
 
 	
@@ -1359,7 +1387,30 @@ async function dbGetAllAuditLogs(){
 }
 	
 
-	
+	async function dbGetAllTopicAssessments(){
+  const pageSize = 1000;
+  let from = 0;
+  let allRows = [];
+
+  while (true){
+    const { data, error } = await supabaseClient
+      .from("evaluation_topic_assessments")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+
+    from += pageSize;
+  }
+
+  return allRows;
+}
 
 /* =========================
    UI INIT
@@ -1460,6 +1511,65 @@ function addTopicAssessmentRow(){
   box.appendChild(row);
 }
 	
+
+
+function getTopicAssessmentsFromUI(){
+
+  const rows = Array.from(
+    document.querySelectorAll(".topicAssessmentRow")
+  );
+
+  if (!rows.length){
+    throw new Error("Tilføj mindst én vurdering.");
+  }
+
+  const assessments = rows.map(row => {
+
+    const anatomy =
+      row.querySelector(".taAnatomy").value;
+
+    const topic =
+      row.querySelector(".taTopic").value;
+
+    const clinical_scale =
+      parseInt(
+        row.querySelector(".taScale").value,
+        10
+      );
+
+    const error_types = Array.from(
+      row.querySelectorAll(".taError:checked")
+    ).map(x => x.value);
+
+    return {
+      anatomy,
+      topic,
+      clinical_scale,
+      error_types: error_types.length
+        ? error_types
+        : null
+    };
+  });
+
+
+  // جلوگیری از ثبت دوباره همان Anatomy + Topic
+  const seen = new Set();
+
+  for (const a of assessments){
+
+    const key = `${a.anatomy}|||${a.topic}`;
+
+    if (seen.has(key)){
+      throw new Error(
+        `Samme anatomi og emne er valgt mere end én gang: ${a.anatomy} / ${a.topic}`
+      );
+    }
+
+    seen.add(key);
+  }
+
+  return assessments;
+}
 	
 	function buildCheckboxes(){
   $("topicsBox").innerHTML = TOPICS.map(t =>
@@ -2715,14 +2825,15 @@ async function importJSONToSupabase(){
     try { payload = JSON.parse(text); }
     catch { return msg("importMsg","Ugyldig JSON.","error"); }
 
-   const students = payload.students || [];
+const students = payload.students || [];
 const evals = payload.evals || [];
 const manualApprovals = payload.manual_approvals || [];
 const auditLogs = payload.audit_logs || [];
+const topicAssessments = payload.evaluation_topic_assessments || [];
 
-    msg(
+   msg(
   "importMsg",
-  `Importer... students=${students.length}, evals=${evals.length}, approvals=${manualApprovals.length}, audit logs=${auditLogs.length}`,
+  `Importer... students=${students.length}, evals=${evals.length}, approvals=${manualApprovals.length}, audit logs=${auditLogs.length}, topic assessments=${topicAssessments.length}`,
   "ok"
 );
 
@@ -2762,6 +2873,28 @@ const auditLogs = payload.audit_logs || [];
       const { error } = await supabaseClient.from("evaluations").upsert(chunk, { onConflict: "id" });
       if (error) throw error;
     }
+
+
+	  for (let i = 0; i < topicAssessments.length; i += chunkSize){
+
+  const chunk = topicAssessments
+    .slice(i, i + chunkSize)
+    .map(a => ({
+      id: a.id,
+      evaluation_id: a.evaluation_id,
+      anatomy: a.anatomy,
+      topic: a.topic,
+      clinical_scale: a.clinical_scale,
+      error_types: a.error_types ?? null,
+      created_at: a.created_at ?? null
+    }));
+
+  const { error } = await supabaseClient
+    .from("evaluation_topic_assessments")
+    .upsert(chunk, { onConflict: "id" });
+
+  if (error) throw error;
+}
 
 	  for (const a of manualApprovals){
 
@@ -3103,16 +3236,18 @@ async function exportJSONBackup(){
 
 
 
-   const [
+const [
   students,
   evals,
   manualApprovals,
-  auditLogs
+  auditLogs,
+  topicAssessments
 ] = await Promise.all([
   dbGetStudents(),
   dbGetAllEvals(),
   dbGetAllManualApprovals(),
-  dbGetAllAuditLogs()
+  dbGetAllAuditLogs(),
+  dbGetAllTopicAssessments()
 ]);
 
 	  console.log("TOTAL EVALUATIONS IN BACKUP:", evals.length);
@@ -3124,11 +3259,12 @@ async function exportJSONBackup(){
   "\nAudit logs: " + auditLogs.length
 );
 
-    const payload = {
+  const payload = {
   students,
   evals,
   manual_approvals: manualApprovals,
-  audit_logs: auditLogs
+  audit_logs: auditLogs,
+  evaluation_topic_assessments: topicAssessments
 };
 
     const blob = new Blob(
