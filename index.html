@@ -948,7 +948,9 @@ let currentRole = null;
 function canManageStudents(){ return ["admin","administrative"].includes(currentRole); }
 function canInsertEval(){ return ["admin","administrative","evaluator"].includes(currentRole); }
 function canSeeResults(){ return ["admin","administrative","evaluator","observer"].includes(currentRole); }
-function canImport(){ return ["admin","administrative"].includes(currentRole); }
+function canImport(){
+  return currentRole === "admin";
+}
 function canManualApproveTopics(){ return ["admin","administrative"].includes(currentRole); }
 	function canSeeAccession(){
   return currentRole === "admin";
@@ -1149,15 +1151,29 @@ async function dbDeleteStudent(studentId){
   if (error) throw error;
 }
 async function dbInsertEval(payloadArr){
-  const { data, error } = await supabaseClient
-    .from("evaluations")
-    .insert(payloadArr)
-.select("id");
 
-  if (error) throw error;
+  const rows =
+    payloadArr.map(row => ({
+      ...row,
+      id: row.id || crypto.randomUUID()
+    }));
 
-  return data || [];
+  const { error } =
+    await supabaseClient
+      .from("evaluations")
+      .insert(rows);
+
+  if (error){
+    throw error;
+  }
+
+  return rows.map(row => ({
+    id: row.id
+  }));
 }
+
+
+	
 
 	async function dbInsertTopicAssessments(payloadArr){
   if (!payloadArr || !payloadArr.length) return [];
