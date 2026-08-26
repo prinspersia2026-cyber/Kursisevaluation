@@ -1066,6 +1066,7 @@ await refreshStudentsIntoSelects();
 
 if (currentRole === "admin"){
   await refreshObserverAssignmentSelects();
+  await renderObserverAssignments();
 }
 
 if (canSeeResults()){
@@ -1209,6 +1210,21 @@ async function dbGetObserversForAdmin(){
 
   return data || [];
 }
+
+async function dbGetObserverAssignmentsForAdmin(){
+
+  const { data, error } =
+    await supabaseClient.rpc(
+      "get_observer_assignments_for_admin"
+    );
+
+  if (error){
+    throw error;
+  }
+
+  return data || [];
+}
+	
 
 
 async function dbAssignObserver(
@@ -1752,6 +1768,52 @@ console.log(
       </option>`
     ).join("");
 }
+
+
+async function renderObserverAssignments(){
+
+  if (currentRole !== "admin"){
+    return;
+  }
+
+  const rows =
+    await dbGetObserverAssignmentsForAdmin();
+
+  const box =
+    $("observerAssignmentsList");
+
+  box.innerHTML = "";
+
+
+  if (rows.length === 0){
+
+    const p =
+      document.createElement("p");
+
+    p.className = "small";
+    p.textContent =
+      "Ingen tildelinger endnu.";
+
+    box.appendChild(p);
+
+    return;
+  }
+
+
+  rows.forEach(row => {
+
+    const p =
+      document.createElement("p");
+
+    p.className = "small";
+
+    p.textContent =
+      `${row.observer_email} → ${row.student_name}`;
+
+    box.appendChild(p);
+
+  });
+}	
 	
 
 /* =========================
