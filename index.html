@@ -1152,7 +1152,7 @@ async function dbInsertEval(payloadArr){
   const { data, error } = await supabaseClient
     .from("evaluations")
     .insert(payloadArr)
-    .select("*");
+.select("id");
 
   if (error) throw error;
 
