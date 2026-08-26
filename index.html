@@ -386,6 +386,51 @@ hr{
   </table>
 </div>
 
+
+	  <!-- RE-REVIEW SCALE 1-2 -->
+<div
+  class="card"
+  id="reReviewCard"
+  style="display:none"
+>
+  <h3>Re-review · Scale 1–2</h3>
+
+  <p class="small">
+    Viser vurderinger med klinisk skala 1 eller 2.
+  </p>
+
+  <button
+    type="button"
+    class="btn-secondary"
+    id="btnShowReReview"
+  >
+    Vis cases til re-review
+  </button>
+
+  <div
+    id="reReviewResults"
+    style="display:none; margin-top:15px"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th>Studerende</th>
+          <th>Dato</th>
+          <th>Anatomi</th>
+          <th>Emne</th>
+          <th>Scale</th>
+          <th>Fejltype</th>
+          <th class="accessionCol">
+            Accession nr.
+          </th>
+        </tr>
+      </thead>
+
+      <tbody id="reReviewBody"></tbody>
+    </table>
+  </div>
+</div>
+
     <!-- STUDENTS -->
     <div class="card" id="studentsCard">
       <h2>Studerende</h2>
@@ -1018,6 +1063,10 @@ function updateUIByRole(){
 
   show($("studentsCard"), canManageStudents());
 show($("dashboardCard"), canSeeResults());
+	show(
+  $("reReviewCard"),
+  currentRole === "admin"
+);
   show($("evaluationCard"), canInsertEval());
 	show(
   $("observerAssignmentCard"),
