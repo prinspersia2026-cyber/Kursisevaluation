@@ -1133,8 +1133,16 @@ async function changePassword(){
    DB HELPERS
 ========================= */
 async function dbGetStudents(){
-  const { data, error } = await supabaseClient.from("students").select("*").order("name", { ascending: true });
-  if (error) throw error;
+
+  const { data, error } =
+    await supabaseClient.rpc(
+      "get_students_safe"
+    );
+
+  if (error){
+    throw error;
+  }
+
   return data || [];
 }
 async function dbUpsertStudent(payloadArr){
