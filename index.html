@@ -2464,12 +2464,24 @@ function renderStats(
       if (hasCo && modAnat[e.modality]) modAnat[e.modality].columna += 1;
     }
 
-    const errs = e.error_types || [];
-    for (const err of errs){
-      if (errorsCount[err] != null) errorsCount[err]++;
-    }
   }
 
+	for (const e of assessmentBes){
+
+  const errs =
+    Array.isArray(e.error_types)
+      ? e.error_types
+      : [];
+
+  for (const err of errs){
+
+    if (errorsCount[err] != null){
+      errorsCount[err]++;
+    }
+  }
+}
+
+	
   $("tblModality").innerHTML = `
     <tr><td>CT</td><td>${modalityCount.CT}</td></tr>
     <tr><td>MR</td><td>${modalityCount.MR}</td></tr>
