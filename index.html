@@ -1663,8 +1663,8 @@ async function addBeskrivelse(){
       );
     }
 
-    // ACCESSION NUMBER
-    const accession_number = $("accessionNumber").value.trim();
+    const accession_number =
+      $("accessionNumber").value.trim();
 
     if (!accession_number){
       return msg(
@@ -1674,85 +1674,172 @@ async function addBeskrivelse(){
       );
     }
 
-    const modality = $("modality").value;
 
-    const anatomy = [];
+    // NEW MODEL:
+    // read the individual anatomy/topic assessments
+    const assessments =
+      getTopicAssessmentsFromUI();
 
-    if ($("anCere").checked){
-      anatomy.push("cerebrum");
-    }
 
-    if ($("anCol").checked){
-      anatomy.push("columna");
-    }
-
-    if (!anatomy.length){
-      return msg(
-        "besMsg",
-        "Vælg mindst én anatomi.",
-        "error"
+    // Check whether this examination already exists
+    let evaluation =
+      await dbFindBeskrivelseByAccession(
+        studentId,
+        accession_number
       );
+
+    let createdNewEvaluation = false;
+
+
+    // Only create a new examination if this accession
+    // does not already exist for this trainee
+    if (!evaluation){
+
+      const modality = $("modality").value;
+
+      // TEMPORARY LEGACY DATA
+      // kept until statistics are migrated to the new model
+      const anatomy = [];
+
+      if ($("anCere").checked){
+        anatomy.push("cerebrum");
+      }
+
+      if ($("anCol").checked){
+        anatomy.push("columna");
+      }
+
+      if (!anatomy.length){
+        return msg(
+          "besMsg",
+          "Vælg mindst én anatomi.",
+          "error"
+        );
+      }
+
+
+      const topics =
+        checkedValues("topicChk");
+
+      if (!topics.length){
+        return msg(
+          "besMsg",
+          "Vælg mindst ét emne.",
+          "error"
+        );
+      }
+
+
+      const clinical_scale =
+        parseInt($("scale").value, 10);
+
+      const error_types =
+        checkedValues("errChk");
+
+      const beskrivelse_date =
+        $("bDate").value || null;
+
+      const supervision_date =
+        $("sDate").value || null;
+
+
+      const inserted =
+        await dbInsertEval([{
+          student_id: studentId,
+          eval_type: "beskrivelse",
+
+          accession_number,
+
+          modality,
+          anatomy,
+          topics,
+          clinical_scale,
+
+          error_types:
+            error_types.length
+              ? error_types
+              : null,
+
+          beskrivelse_date,
+          supervision_date
+        }]);
+
+
+      evaluation = inserted[0];
+      createdNewEvaluation = true;
+
+      if (!evaluation?.id){
+        throw new Error(
+          "Kunne ikke oprette undersøgelsen."
+        );
+      }
     }
 
-    const topics = checkedValues("topicChk");
 
-    if (!topics.length){
-      return msg(
-        "besMsg",
-        "Vælg mindst ét emne.",
-        "error"
-      );
-    }
-
-    const clinical_scale =
-      parseInt($("scale").value, 10);
-
-    const error_types =
-      checkedValues("errChk");
-
-    const beskrivelse_date =
-      $("bDate").value || null;
-
-    const supervision_date =
-      $("sDate").value || null;
+    // Save the new detailed assessments
+    const assessmentPayload =
+      assessments.map(a => ({
+        evaluation_id: evaluation.id,
+        anatomy: a.anatomy,
+        topic: a.topic,
+        clinical_scale: a.clinical_scale,
+        error_types: a.error_types
+      }));
 
 
-    await dbInsertEval([{
-      student_id: studentId,
-      eval_type: "beskrivelse",
-
-      accession_number: accession_number,
-
-      modality,
-      anatomy,
-      topics,
-      clinical_scale,
-
-      error_types:
-        error_types.length
-          ? error_types
-          : null,
-
-      beskrivelse_date,
-      supervision_date
-    }]);
+    await dbInsertTopicAssessments(
+      assessmentPayload
+    );
 
 
     $("accessionNumber").value = "";
+    $("topicAssessmentsBox").innerHTML = "";
 
-    msg(
-      "besMsg",
-      "Gemte beskrivelse.",
-      "ok"
-    );
+
+    if (createdNewEvaluation){
+
+      msg(
+        "besMsg",
+        "Undersøgelse og vurderinger blev gemt.",
+        "ok"
+      );
+
+    } else {
+
+      msg(
+        "besMsg",
+        "Accession nr. findes allerede. Nye vurderinger blev tilføjet til den eksisterende undersøgelse.",
+        "ok"
+      );
+    }
+
 
   } catch(e){
 
-    console.error("addBeskrivelse error:", e);
+    console.error(
+      "addBeskrivelse error:",
+      e
+    );
+
+    const errorText =
+      e.message || String(e);
+
+    if (
+      errorText.includes("duplicate key") ||
+      errorText.includes(
+        "evaluation_topic_assessments_evaluation_id_anatomy_topic_key"
+      )
+    ){
+      return msg(
+        "besMsg",
+        "Denne anatomi/emne-vurdering findes allerede for dette accession nr.",
+        "error"
+      );
+    }
 
     msg(
       "besMsg",
-      e.message || String(e),
+      errorText,
       "error"
     );
   }
