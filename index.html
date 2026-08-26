@@ -3269,6 +3269,11 @@ function downloadCSV(){
   if (!lastStudentId) return;
   const student = lastStudentObj || null;
   const evs = lastEvals || [];
+	const statsEvs =
+  buildStatsBeskrivelseEvents(
+    evs,
+    lastTopicAssessments || []
+  );
 
   const lines = [];
   lines.push(["student","level","start_date","expected_end_date","competence_required"].map(csvEscape).join(","));
@@ -3276,22 +3281,53 @@ function downloadCSV(){
   lines.push("");
 
   lines.push(["id","type","date","modality","anatomy","topics","scale","visitation","errors","beskrivelse_date","supervision_date","created_at"].map(csvEscape).join(","));
-  for (const e of evs){
+ for (const e of evs){
+
+  if (e.eval_type !== "beskrivelse"){
+
     lines.push([
       e.id,
       e.eval_type,
       getEvalDate(e),
       e.modality || "",
-      (e.anatomy||[]).join("|"),
-      (e.topics||[]).join("|"),
+      (e.anatomy || []).join("|"),
+      (e.topics || []).join("|"),
       e.clinical_scale ?? "",
       e.visitation_result ?? "",
-      (e.error_types||[]).join("|"),
+      (e.error_types || []).join("|"),
+      e.beskrivelse_date ?? "",
+      e.supervision_date ?? "",
+      e.created_at ?? ""
+    ].map(csvEscape).join(","));
+
+    continue;
+  }
+
+
+  const assessmentRows =
+    statsEvs.filter(
+      x => x.id === e.id
+    );
+
+
+  for (const a of assessmentRows){
+
+    lines.push([
+      e.id,
+      e.eval_type,
+      getEvalDate(e),
+      e.modality || "",
+      (a.anatomy || []).join("|"),
+      (a.topics || []).join("|"),
+      a.clinical_scale ?? "",
+      e.visitation_result ?? "",
+      (a.error_types || []).join("|"),
       e.beskrivelse_date ?? "",
       e.supervision_date ?? "",
       e.created_at ?? ""
     ].map(csvEscape).join(","));
   }
+}
 
   const blob = new Blob([lines.join("\r\n")], { type:"text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
