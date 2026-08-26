@@ -429,6 +429,38 @@ hr{
       
     </div>
 
+	  <div class="card" id="observerAssignmentCard" style="display:none">
+  <h3>Tildel vejleder</h3>
+
+  <div class="row">
+
+    <div>
+      <label>Vejleder</label><br/>
+      <select id="observerSelect"></select>
+    </div>
+
+    <div>
+      <label>Studerende</label><br/>
+      <select id="observerStudentSelect"></select>
+    </div>
+
+    <div>
+      <button
+        type="button"
+        class="btn-primary"
+        id="btnAssignObserver"
+      >
+        Tildel
+      </button>
+    </div>
+
+  </div>
+
+  <p id="observerAssignMsg" class="small"></p>
+
+  <div id="observerAssignmentsList"></div>
+</div>
+
     <!-- EVALUATION -->
     <div class="card" id="evaluationCard">
       <h2>Evaluering</h2>
@@ -987,6 +1019,10 @@ function updateUIByRole(){
   show($("studentsCard"), canManageStudents());
 show($("dashboardCard"), canSeeResults());
   show($("evaluationCard"), canInsertEval());
+	show(
+  $("observerAssignmentCard"),
+  currentRole === "admin"
+);
   show($("resultsCard"), canSeeResults());
 	show(
   $("accessionSearchRow"),
@@ -1145,6 +1181,22 @@ async function dbGetStudents(){
 
   return data || [];
 }
+
+
+async function dbGetObserversForAdmin(){
+
+  const { data, error } =
+    await supabaseClient.rpc(
+      "get_observers_for_admin"
+    );
+
+  if (error){
+    throw error;
+  }
+
+  return data || [];
+}
+	
 async function dbUpsertStudent(payloadArr){
   const { error } = await supabaseClient.from("students").upsert(payloadArr, { onConflict: "id" });
   if (error) throw error;
