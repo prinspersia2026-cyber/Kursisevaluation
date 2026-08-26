@@ -1364,7 +1364,104 @@ async function dbGetAllAuditLogs(){
 /* =========================
    UI INIT
 ========================= */
-function buildCheckboxes(){
+function addTopicAssessmentRow(){
+
+  const box = $("topicAssessmentsBox");
+
+  const row = document.createElement("div");
+  row.className = "topicAssessmentRow";
+
+  row.style.border = "1px solid #ccc";
+  row.style.borderRadius = "8px";
+  row.style.padding = "12px";
+  row.style.marginBottom = "10px";
+
+  row.innerHTML = `
+    <div class="row">
+
+      <div>
+        <label>Anatomi</label><br/>
+        <select class="taAnatomy">
+          <option value="cerebrum">Cerebrum</option>
+          <option value="columna">Columna</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Emne</label><br/>
+        <select class="taTopic"></select>
+      </div>
+
+      <div>
+        <label>Klinisk betydning</label><br/>
+        <select class="taScale">
+          <option value="1">1 - Sandsynlig klinisk betydning</option>
+          <option value="2">2 - Mulig klinisk betydning</option>
+          <option value="3">3 - Ikke klinisk betydning</option>
+          <option value="4">4 - Helt enig</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div style="margin-top:10px">
+      <label>Fejltype</label>
+
+      <div class="chkgroup">
+        ${ERROR_TYPES.map(e => `
+          <label class="chk">
+            <input
+              type="checkbox"
+              class="taError"
+              value="${e}"
+            />
+            <span>${e}</span>
+          </label>
+        `).join("")}
+      </div>
+    </div>
+
+    <button
+      type="button"
+      class="btn-secondary taRemove"
+      style="margin-top:10px"
+    >
+      Fjern vurdering
+    </button>
+  `;
+
+
+  const anatomySelect = row.querySelector(".taAnatomy");
+  const topicSelect = row.querySelector(".taTopic");
+
+
+  function updateTopics(){
+
+    const anatomy = anatomySelect.value;
+
+    const allowedTopics = TOPICS.filter(topic =>
+      (TOPIC_ANATOMY_MAP[topic] || []).includes(anatomy)
+    );
+
+    topicSelect.innerHTML = allowedTopics
+      .map(topic => `<option value="${topic}">${topic}</option>`)
+      .join("");
+  }
+
+
+  anatomySelect.addEventListener("change", updateTopics);
+
+  row
+    .querySelector(".taRemove")
+    .addEventListener("click", () => row.remove());
+
+  updateTopics();
+
+  box.appendChild(row);
+}
+	
+	
+	function buildCheckboxes(){
   $("topicsBox").innerHTML = TOPICS.map(t =>
     `<label class="chk"><input type="checkbox" class="topicChk" value="${t}"/><span>${t}</span></label>`
   ).join("");
@@ -3144,6 +3241,10 @@ function boot(){
 
   $("evalType").addEventListener("change", setEvalUI);
   $("btnSameDate").addEventListener("click", () => $("sDate").value = $("bDate").value);
+	$("btnAddTopicAssessment").addEventListener(
+  "click",
+  addTopicAssessmentRow
+);
 
   $("btnLogin").addEventListener("click", login);
   $("btnLogout").addEventListener("click", logout);
