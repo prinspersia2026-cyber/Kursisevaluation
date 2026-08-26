@@ -1061,8 +1061,16 @@ await supabaseClient.auth.setSession({
 
 await loadUserRole();
 updateUIByRole();
+
 await refreshStudentsIntoSelects();
-if (canSeeResults()) await renderDashboard();
+
+if (currentRole === "admin"){
+  await refreshObserverAssignmentSelects();
+}
+
+if (canSeeResults()){
+  await renderDashboard();
+}
 
   msg("loginMsg","Login OK","ok");
 }
@@ -1681,6 +1689,38 @@ async function refreshStudentsIntoSelects(){
   $("studentSelect").innerHTML = opts;
   $("studentSelectResults").innerHTML = opts;
 }
+
+async function refreshObserverAssignmentSelects(){
+
+  if (currentRole !== "admin"){
+    return;
+  }
+
+  const [
+    observers,
+    students
+  ] = await Promise.all([
+    dbGetObserversForAdmin(),
+    dbGetStudents()
+  ]);
+
+
+  $("observerSelect").innerHTML =
+    observers.map(o =>
+      `<option value="${o.user_id}">
+        ${csvEscape(o.email)}
+      </option>`
+    ).join("");
+
+
+  $("observerStudentSelect").innerHTML =
+    students.map(s =>
+      `<option value="${s.id}">
+        ${csvEscape(s.name)}
+      </option>`
+    ).join("");
+}
+	
 
 /* =========================
    STUDENT ACTIONS
