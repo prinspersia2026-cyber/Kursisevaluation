@@ -2197,7 +2197,10 @@ function searchAccession(){
 
   // اگر search خالی باشد، جدول عادی را برگردان
   if (!q){
-    renderDataTable(lastEvals);
+    renderDataTable(
+  lastEvals,
+  lastTopicAssessments
+);
     msg("resMsg", "", "");
     return;
   }
@@ -2208,7 +2211,10 @@ function searchAccession(){
       .toLowerCase() === q
   );
 
-  renderDataTable(matches);
+  renderDataTable(
+  matches,
+  lastTopicAssessments
+);
 
   if (!matches.length){
     msg("resMsg", "Ingen evaluering fundet med dette accession nr.", "error");
