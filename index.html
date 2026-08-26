@@ -1550,14 +1550,6 @@ function getTopicAssessmentsFromUI(){
 }
 	
 	function buildCheckboxes(){
-  $("topicsBox").innerHTML = TOPICS.map(t =>
-    `<label class="chk"><input type="checkbox" class="topicChk" value="${t}"/><span>${t}</span></label>`
-  ).join("");
-
-  $("errorsBox").innerHTML = ERROR_TYPES.map(t =>
-    `<label class="chk"><input type="checkbox" class="errChk" value="${t}"/><span>${t}</span></label>`
-  ).join("");
-
   $("visDate").value = todayISO();
   $("bDate").value = todayISO();
   $("sDate").value = "";
