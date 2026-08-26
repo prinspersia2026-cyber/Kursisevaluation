@@ -1991,16 +1991,52 @@ function buildTimeseriesForStudent(evs){
   return ts;
 }
 
-function buildWeeklyErrorTrendSeries(evs){
-  const bes = evs.filter(e => e.eval_type === "beskrivelse");
+function buildWeeklyErrorTrendSeries(
+  evs,
+  topicAssessments = []
+){
+
+  const assessmentsByEvaluation =
+    new Map();
+
+
+  for (const a of topicAssessments){
+
+    if (
+      !assessmentsByEvaluation
+        .has(a.evaluation_id)
+    ){
+      assessmentsByEvaluation
+        .set(a.evaluation_id, []);
+    }
+
+    assessmentsByEvaluation
+      .get(a.evaluation_id)
+      .push(a);
+  }
+
+
+  const bes =
+    evs.filter(
+      e => e.eval_type === "beskrivelse"
+    );
+
   const byWeek = new Map();
 
+
   for (const e of bes){
-    const rawDate = getEvalDate(e);
-    const weekKey = getWeekKey(rawDate);
+
+    const rawDate =
+      getEvalDate(e);
+
+    const weekKey =
+      getWeekKey(rawDate);
+
     if (!weekKey) continue;
 
+
     if (!byWeek.has(weekKey)){
+
       byWeek.set(weekKey, {
         totalErrors: 0,
         totalCases: 0,
@@ -2010,29 +2046,107 @@ function buildWeeklyErrorTrendSeries(evs){
       });
     }
 
-    const row = byWeek.get(weekKey);
+
+    const row =
+      byWeek.get(weekKey);
+
+
+    // One evaluation = one examination/case
     row.totalCases += 1;
 
-    const errs = Array.isArray(e.error_types) ? e.error_types : [];
+
+    const assessments =
+      assessmentsByEvaluation
+        .get(e.id) || [];
+
+
+    let errs = [];
+
+
+    // NEW MODEL
+    if (assessments.length){
+
+      for (const a of assessments){
+
+        if (Array.isArray(a.error_types)){
+          errs.push(...a.error_types);
+        }
+      }
+
+    }
+
+    // OLD / HISTORICAL MODEL
+    else {
+
+      errs =
+        Array.isArray(e.error_types)
+          ? e.error_types
+          : [];
+    }
+
+
     for (const err of errs){
+
       row.totalErrors += 1;
-      if (row[err] != null) row[err] += 1;
+
+      if (row[err] != null){
+        row[err] += 1;
+      }
     }
   }
 
-  const labels = Array.from(byWeek.keys()).sort();
 
-  const totalErrors = labels.map(w => byWeek.get(w).totalErrors);
-  const totalCases = labels.map(w => byWeek.get(w).totalCases);
-  const overseelse = labels.map(w => byWeek.get(w).overseelse);
-  const fejltolkning = labels.map(w => byWeek.get(w).fejltolkning);
-  const manglende = labels.map(w => byWeek.get(w)["manglende samvittighedsfuldhed"]);
+  const labels =
+    Array.from(byWeek.keys()).sort();
 
-  const errorRate = labels.map(w => {
-    const row = byWeek.get(w);
-    if (!row.totalCases) return 0;
-    return Number((row.totalErrors / row.totalCases).toFixed(2));
-  });
+
+  const totalErrors =
+    labels.map(
+      w => byWeek.get(w).totalErrors
+    );
+
+  const totalCases =
+    labels.map(
+      w => byWeek.get(w).totalCases
+    );
+
+  const overseelse =
+    labels.map(
+      w => byWeek.get(w).overseelse
+    );
+
+  const fejltolkning =
+    labels.map(
+      w => byWeek.get(w).fejltolkning
+    );
+
+  const manglende =
+    labels.map(
+      w =>
+        byWeek.get(w)[
+          "manglende samvittighedsfuldhed"
+        ]
+    );
+
+
+  const errorRate =
+    labels.map(w => {
+
+      const row =
+        byWeek.get(w);
+
+      if (!row.totalCases){
+        return 0;
+      }
+
+      return Number(
+        (
+          row.totalErrors /
+          row.totalCases
+        ).toFixed(2)
+      );
+    });
+
 
   return {
     labels,
@@ -2666,8 +2780,16 @@ function renderTopic(studentName){
   });
 }
 
-function renderWeeklyErrorTrends(studentName, evs){
-  const series = buildWeeklyErrorTrendSeries(evs);
+function renderWeeklyErrorTrends(
+  studentName,
+  evs,
+  topicAssessments
+){
+  const series =
+    buildWeeklyErrorTrendSeries(
+      evs,
+      topicAssessments
+    );
 
   if (!series.labels.length){
     show($("errorTrendCard"), false);
@@ -3537,7 +3659,11 @@ const { thresholdPct, perTopic } =
   perTopic,
   manualApprovalMap
 );
-    renderWeeklyErrorTrends(studentName, evs);
+    renderWeeklyErrorTrends(
+  studentName,
+  evs,
+  topicAssessments
+);
 
     msg("resMsg","OK","ok");
     $("btnCSV").disabled = false;
