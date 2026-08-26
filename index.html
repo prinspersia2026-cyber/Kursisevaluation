@@ -2062,37 +2062,132 @@ function groupByDateAvg(rows){
   return { labels, values };
 }
 
-function renderDataTable(evs){
+function renderDataTable(evs, topicAssessments = []){
+
   const body = $("dataBody");
   body.innerHTML = "";
+
   const last200 = evs.slice(-200).reverse();
 
+  const assessmentsByEvaluation = new Map();
+
+  for (const a of topicAssessments){
+
+    if (!assessmentsByEvaluation.has(a.evaluation_id)){
+      assessmentsByEvaluation.set(a.evaluation_id, []);
+    }
+
+    assessmentsByEvaluation
+      .get(a.evaluation_id)
+      .push(a);
+  }
+
+
   for (const e of last200){
+
     const tr = document.createElement("tr");
     const date = getEvalDate(e);
+
+    const assessments =
+      assessmentsByEvaluation.get(e.id) || [];
+
+
+    let anatomyText;
+    let topicsText;
+    let scaleText;
+    let errorsText;
+
+
+    if (assessments.length){
+
+      anatomyText =
+        [...new Set(
+          assessments.map(a => a.anatomy)
+        )].join(" / ");
+
+
+      topicsText =
+        assessments
+          .map(a => a.topic)
+          .join(" | ");
+
+
+      scaleText =
+        assessments
+          .map(a =>
+            `${a.topic}: ${a.clinical_scale}`
+          )
+          .join(" | ");
+
+
+      errorsText =
+        assessments
+          .map(a => {
+
+            const errs =
+              Array.isArray(a.error_types)
+                ? a.error_types
+                : [];
+
+            if (!errs.length) return "";
+
+            return `${a.topic}: ${errs.join(", ")}`;
+
+          })
+          .filter(Boolean)
+          .join(" | ");
+
+    } else {
+
+      anatomyText =
+        (e.anatomy || []).join(" / ");
+
+      topicsText =
+        (e.topics || []).join(" | ");
+
+      scaleText =
+        e.clinical_scale ?? "";
+
+      errorsText =
+        (e.error_types || []).join(" | ");
+    }
+
 
     tr.innerHTML = `
       <td>${csvEscape(e.eval_type)}</td>
       <td>${csvEscape(date)}</td>
-	  <td>${csvEscape(e.accession_number || "")}</td>
+      <td>${csvEscape(e.accession_number || "")}</td>
       <td>${csvEscape(e.modality || "")}</td>
-      <td>${csvEscape((e.anatomy||[]).join(" / "))}</td>
-      <td>${csvEscape((e.topics||[]).join(" | "))}</td>
-      <td>${csvEscape(e.clinical_scale ?? "")}</td>
+      <td>${csvEscape(anatomyText)}</td>
+      <td>${csvEscape(topicsText)}</td>
+      <td>${csvEscape(scaleText)}</td>
       <td>${csvEscape(e.visitation_result ?? "")}</td>
-      <td>${csvEscape((e.error_types||[]).join(" | "))}</td>
+      <td>${csvEscape(errorsText)}</td>
     `;
-tr.style.cursor = "pointer";
-tr.addEventListener("click", () => {
-  selectedEvalId = e.id;
-  selectedEvalRow = e;
 
-  // highlight ساده
-  Array.from(document.querySelectorAll("#dataBody tr")).forEach(x => x.style.outline = "");
-  tr.style.outline = "2px solid #111";
 
-  msg("resMsg", `Selected row: ${e.eval_type}`, "ok");
-});
+    tr.style.cursor = "pointer";
+
+    tr.addEventListener("click", () => {
+
+      selectedEvalId = e.id;
+      selectedEvalRow = e;
+
+      document
+        .querySelectorAll("#dataBody tr")
+        .forEach(r => r.style.outline = "");
+
+      tr.style.outline =
+        "3px solid #0284c7";
+
+      msg(
+        "resMsg",
+        `Selected row: ${e.eval_type}`,
+        "ok"
+      );
+    });
+
+
     body.appendChild(tr);
   }
 }
@@ -3395,7 +3490,10 @@ const manualApprovalMap = Object.fromEntries(
 
 
     // data table
-    renderDataTable(evs);
+    renderDataTable(
+  evs,
+  topicAssessments
+);
 await renderAuditLog(studentId);
 
     // charts time series
