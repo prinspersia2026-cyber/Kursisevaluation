@@ -1884,6 +1884,7 @@ let lastStudentName = "";
 let lastStudentId = "";
 let lastStudentLevel = "Intro";
 let lastEvals = [];
+let lastTopicAssessments = [];
 
 function hideCharts(){
   show($("overallCard"), false);
@@ -3270,10 +3271,16 @@ async function showResults(){
   lastStudentName = studentName;
 
   try{
-    const [students, evs, approvals] = await Promise.all([
+  const [
+  students,
+  evs,
+  approvals,
+  topicAssessments
+] = await Promise.all([
   dbGetStudents(),
   dbGetEvals(studentId),
-  dbGetManualApprovals(studentId)
+  dbGetManualApprovals(studentId),
+  dbGetTopicAssessments(studentId)
 ]);
 const manualApprovalMap = Object.fromEntries(
   approvals
@@ -3284,6 +3291,7 @@ const manualApprovalMap = Object.fromEntries(
     lastStudentObj = student || null;
     lastStudentLevel = student?.level || "Intro";
     lastEvals = evs;
+	lastTopicAssessments = topicAssessments;
 
     // summary
     renderSummary(student, evs);
