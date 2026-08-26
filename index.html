@@ -1903,6 +1903,82 @@ function getEvalDate(e){
   return toDateKey(e.supervision_date || e.beskrivelse_date || e.created_at);
 }
 
+
+function buildStatsBeskrivelseEvents(evs, topicAssessments){
+
+  const assessmentsByEvaluation = new Map();
+
+  for (const a of (topicAssessments || [])){
+
+    if (!assessmentsByEvaluation.has(a.evaluation_id)){
+      assessmentsByEvaluation.set(
+        a.evaluation_id,
+        []
+      );
+    }
+
+    assessmentsByEvaluation
+      .get(a.evaluation_id)
+      .push(a);
+  }
+
+
+  const result = [];
+
+
+  for (const e of (evs || [])){
+
+    if (e.eval_type !== "beskrivelse"){
+      continue;
+    }
+
+
+    const assessments =
+      assessmentsByEvaluation.get(e.id) || [];
+
+
+    // NEW MODEL
+    if (assessments.length){
+
+      for (const a of assessments){
+
+        result.push({
+          ...e,
+
+          anatomy: [a.anatomy],
+          topics: [a.topic],
+
+          clinical_scale:
+            a.clinical_scale,
+
+          error_types:
+            Array.isArray(a.error_types)
+              ? a.error_types
+              : [],
+
+          assessment_id: a.id,
+
+          data_model: "topic_assessment"
+        });
+      }
+
+      continue;
+    }
+
+
+    // OLD / HISTORICAL MODEL
+    result.push({
+      ...e,
+      data_model: "legacy"
+    });
+  }
+
+
+  return result;
+}
+
+
+	
 function buildTimeseriesForStudent(evs){
   const bes = evs.filter(e => e.eval_type === "beskrivelse" && e.clinical_scale != null);
   const ts = [];
@@ -3293,6 +3369,12 @@ const manualApprovalMap = Object.fromEntries(
     lastEvals = evs;
 	lastTopicAssessments = topicAssessments;
 
+	  const statsEvs =
+  buildStatsBeskrivelseEvents(
+    evs,
+    topicAssessments
+  );
+
     // summary
     renderSummary(student, evs);
 
@@ -3302,7 +3384,7 @@ const manualApprovalMap = Object.fromEntries(
 await renderAuditLog(studentId);
 
     // charts time series
-    lastTimeseries = buildTimeseriesForStudent(evs);
+    lastTimeseries = buildTimeseriesForStudent(statsEvs);
     renderOverall(studentName);
 
     initTopicSelect();
@@ -3310,7 +3392,12 @@ await renderAuditLog(studentId);
     renderTopic(studentName);
 
     // final evaluation + stats
-    const { thresholdPct, perTopic } = renderFinalEvaluation(student, evs, manualApprovalMap);
+const { thresholdPct, perTopic } =
+  renderFinalEvaluation(
+    student,
+    statsEvs,
+    manualApprovalMap
+  );
     renderStats(student, evs, thresholdPct, perTopic, manualApprovalMap);
     renderWeeklyErrorTrends(studentName, evs);
 
