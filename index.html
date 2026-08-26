@@ -1195,8 +1195,6 @@ async function dbGetStudents(){
   return data || [];
 }
 
-	
-
 
 async function dbGetObserversForAdmin(){
 
@@ -1211,6 +1209,25 @@ async function dbGetObserversForAdmin(){
 
   return data || [];
 }
+
+
+async function dbAssignObserver(
+  observerUserId,
+  studentId
+){
+
+  const { error } =
+    await supabaseClient
+      .from("observer_student_assignments")
+      .insert({
+        observer_user_id: observerUserId,
+        student_id: studentId
+      });
+
+  if (error){
+    throw error;
+  }
+}	
 	
 async function dbUpsertStudent(payloadArr){
   const { error } = await supabaseClient.from("students").upsert(payloadArr, { onConflict: "id" });
@@ -1769,6 +1786,68 @@ async function saveStudent(){
   }
 }
 
+
+async function assignSelectedObserver(){
+
+  msg(
+    "observerAssignMsg",
+    ""
+  );
+
+  try{
+
+    const observerUserId =
+      $("observerSelect").value;
+
+    const studentId =
+      $("observerStudentSelect").value;
+
+
+    if (!observerUserId || !studentId){
+      return msg(
+        "observerAssignMsg",
+        "Vælg vejleder og studerende.",
+        "error"
+      );
+    }
+
+
+    await dbAssignObserver(
+      observerUserId,
+      studentId
+    );
+
+
+    msg(
+      "observerAssignMsg",
+      "Vejleder er tildelt.",
+      "ok"
+    );
+
+  } catch(e){
+
+    console.error(
+      "assignSelectedObserver error:",
+      e
+    );
+
+    if (e.code === "23505"){
+      return msg(
+        "observerAssignMsg",
+        "Denne vejleder er allerede tildelt denne studerende.",
+        "error"
+      );
+    }
+
+    msg(
+      "observerAssignMsg",
+      e.message || String(e),
+      "error"
+    );
+  }
+}
+
+	
 async function deleteSelectedStudent(){
   msg("stMsg","");
   try{
@@ -4170,6 +4249,10 @@ $("btnForgotPassword").addEventListener("click", forgotPassword);
 
   $("btnSaveStudent").addEventListener("click", saveStudent);
   $("btnDeleteStudent").addEventListener("click", deleteSelectedStudent);
+	$("btnAssignObserver").addEventListener(
+  "click",
+  assignSelectedObserver
+);
 
   $("btnAddBes").addEventListener("click", addBeskrivelse);
   $("btnAddVis").addEventListener("click", addVisitation);
