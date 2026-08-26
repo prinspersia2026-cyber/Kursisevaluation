@@ -1824,6 +1824,7 @@ async function refreshStudentsIntoSelects(){
   const opts = students.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
   $("studentSelect").innerHTML = opts;
   $("studentSelectResults").innerHTML = opts;
+	$("reReviewStudentSelect").innerHTML = opts;
 }
 
 async function refreshObserverAssignmentSelects(){
