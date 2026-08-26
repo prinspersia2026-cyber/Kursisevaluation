@@ -1225,7 +1225,20 @@ async function dbGetObserverAssignmentsForAdmin(){
   return data || [];
 }
 	
+async function dbDeleteObserverAssignment(
+  assignmentId
+){
 
+  const { error } =
+    await supabaseClient
+      .from("observer_student_assignments")
+      .delete()
+      .eq("id", assignmentId);
+
+  if (error){
+    throw error;
+  }
+}
 
 async function dbAssignObserver(
   observerUserId,
@@ -1800,20 +1813,43 @@ async function renderObserverAssignments(){
   }
 
 
-  rows.forEach(row => {
+rows.forEach(row => {
 
-    const p =
-      document.createElement("p");
+  const p =
+    document.createElement("p");
 
-    p.className = "small";
+  p.className = "small";
 
-    p.textContent =
-      `${row.observer_email} → ${row.student_name}`;
 
-    box.appendChild(p);
+  const text =
+    document.createElement("span");
 
-  });
-}	
+  text.textContent =
+    `${row.observer_email} → ${row.student_name} `;
+
+
+  const btn =
+    document.createElement("button");
+
+  btn.type = "button";
+  btn.className = "btn-secondary";
+  btn.textContent = "Fjern";
+
+  btn.addEventListener(
+    "click",
+    () =>
+      removeObserverAssignment(
+        row.assignment_id
+      )
+  );
+
+
+  p.appendChild(text);
+  p.appendChild(btn);
+
+  box.appendChild(p);
+
+});	
 	
 
 /* =========================
@@ -1909,6 +1945,38 @@ async function assignSelectedObserver(){
   }
 }
 
+	async function removeObserverAssignment(
+  assignmentId
+){
+
+  try{
+
+    await dbDeleteObserverAssignment(
+      assignmentId
+    );
+
+    msg(
+      "observerAssignMsg",
+      "Tildeling er fjernet.",
+      "ok"
+    );
+
+    await renderObserverAssignments();
+
+  } catch(e){
+
+    console.error(
+      "removeObserverAssignment error:",
+      e
+    );
+
+    msg(
+      "observerAssignMsg",
+      e.message || String(e),
+      "error"
+    );
+  }
+}
 	
 async function deleteSelectedStudent(){
   msg("stMsg","");
