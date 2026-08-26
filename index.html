@@ -1696,13 +1696,21 @@ async function refreshObserverAssignmentSelects(){
     return;
   }
 
-  const [
-    observers,
-    students
-  ] = await Promise.all([
-    dbGetObserversForAdmin(),
-    dbGetStudents()
-  ]);
+const observers =
+  await dbGetObserversForAdmin();
+
+console.log(
+  "OBSERVERS:",
+  observers
+);
+
+const students =
+  await dbGetStudents();
+
+console.log(
+  "STUDENTS:",
+  students
+);
 
 
   $("observerSelect").innerHTML =
