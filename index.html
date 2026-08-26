@@ -3001,20 +3001,45 @@ function addPdfHeaderFooter(title){
   doc.text(`Page ${pageCount}`, 180, 286);
 }
 
-  const student = lastStudentObj;
-  const evs = lastEvals || [];
-  const bes = evs.filter(e => e.eval_type === "beskrivelse");
 
-  const level = student.level || "Intro";
-  const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
+	
+const student = lastStudentObj;
+const evs = lastEvals || [];
 
-  const good = bes.filter(e =>
-    e.clinical_scale === 3 || e.clinical_scale === 4
+const statsEvs =
+  buildStatsBeskrivelseEvents(
+    evs,
+    lastTopicAssessments || []
+  );
+
+const besCases =
+  evs.filter(
+    e => e.eval_type === "beskrivelse"
+  );
+
+const besAssessments =
+  statsEvs.filter(
+    e => e.eval_type === "beskrivelse"
+  );
+
+const level = student.level || "Intro";
+const thresholdPct = PASS_THRESHOLDS[level] ?? 70;
+
+const good =
+  besAssessments.filter(
+    e =>
+      e.clinical_scale === 3 ||
+      e.clinical_scale === 4
   ).length;
 
-  const pct = bes.length
-    ? Math.round((good / bes.length) * 100)
+const pct =
+  besAssessments.length
+    ? Math.round(
+        (good / besAssessments.length) * 100
+      )
     : 0;
+
+	
 
   doc.setFontSize(16);
  doc.text("Neuroradiologi Competency Report", 75, 22);
@@ -3026,7 +3051,11 @@ doc.text(`Startdato: ${student.start_date || ""}`, 14, 64);
 doc.text(`Forventet slutdato: ${student.expected_end_date || ""}`, 14, 72);
 doc.text(`Rapportdato: ${new Date().toLocaleDateString()}`, 14, 80);
 
-  doc.text(`Antal beskrivelser: ${bes.length}`, 14, 94);
+  doc.text(
+  `Antal beskrivelser: ${besCases.length}`,
+  14,
+  94
+);
 doc.text(`3+4 procent: ${pct}%`, 14, 102);
 doc.text(`Krav 3+4: ${thresholdPct}%`, 14, 110);
 
@@ -3054,7 +3083,7 @@ for (const c of requiredCompetencies) {
   const st = computeTopicAnatomyStatus(
     c.topic,
     c.anatomy,
-    bes,
+    besAssessments,
     thresholdPct
   );
 
